@@ -165,19 +165,15 @@ LLMHallucinationProbing/
 
 ## 四、环境搭建详细步骤
 
-### 4.1 安装 Conda 与 uv
+### 4.1 安装 Conda
 
 ```powershell
 # 1. 安装 Miniconda（如未安装）
 # 下载地址: https://docs.conda.io/en/latest/miniconda.html
 # 安装完成后重启终端
 
-# 2. 安装 uv（Windows PowerShell）
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# 3. 验证安装
+# 验证安装
 conda --version
-uv --version
 ```
 
 ### 4.2 创建 Conda 环境
@@ -190,30 +186,41 @@ conda activate llm_hallucination
 
 ### 4.3 使用 uv 安装项目依赖
 
+> **说明**：所有依赖已预先写入 `pyproject.toml`（含 CUDA 版 PyTorch 源与 Windows bitsandbytes 兼容版），只需以下两步即可完成环境搭建。`uv add` 无需手动执行。
+
 ```powershell
-# 在项目根目录初始化 uv 项目
-uv init --name llm_hallucination_probing
+# 在 Conda 环境中安装 uv
+python -m pip install uv
+
+# 一键安装全部依赖
 uv sync
 
-# 安装核心依赖（保底主路径，Qwen2-1.5B FP16 可直接运行）
-uv add torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-uv add transformers accelerate
-uv add peft sentencepiece protobuf
-uv add scikit-learn numpy pandas matplotlib seaborn
-uv add tqdm datasets huggingface_hub
-uv add wandb pyyaml
-
-# 仅在尝试 Llama-2-7B 4-bit 且需要 Windows 兼容安装时使用（本计划默认执行环境为 Windows PowerShell，优先采用此方案）
-uv add https://github.com/jllllll/bitsandbytes-windows-webui/releases/download/wheels/bitsandbytes-0.41.1-py3-none-win_amd64.whl
-
-# 仅在执行 Subject token 分析时安装
-uv add spacy
-python -m spacy download en_core_web_sm
-
-# 安装开发工具（可选）
-uv add ipykernel jupyter ipywidgets
-uv add black ruff mypy
+# 激活 uv 环境
+.\.venv\Scripts\activate.ps1
 ```
+
+> **依赖清单**（由 `pyproject.toml` 统一管理，无需手动安装）：
+
+| 类别 | 包含的包 |
+|------|---------|
+| 深度学习框架 | `torch`, `torchvision`, `torchaudio`（CUDA 12.4 源） |
+| 模型与推理 | `transformers`, `accelerate`, `peft`, `sentencepiece`, `protobuf` |
+| 数据处理 | `datasets`, `numpy`, `pandas`, `huggingface-hub` |
+| 机器学习 | `scikit-learn`, `scipy` |
+| 可视化 | `matplotlib`, `seaborn` |
+| 工具 | `tqdm`, `pyyaml` |
+| 可选：4-bit 量化 | `bitsandbytes`（Windows 社区版 wheel） |
+| 可选：Subject token | `spacy` |
+| 可选：实验跟踪 | `wandb` |
+| 开发工具 | `ipykernel`, `jupyter`, `ipywidgets`, `black`, `ruff`, `mypy` |
+
+> ⚠️ **重要**：后续所有命令执行前，必须依次激活两个环境：
+> ```powershell
+> conda activate llm_hallucination
+> .\.venv\Scripts\activate.ps1
+> ```
+> 未激活环境将导致 `python` 指向错误的解释器，或缺少必要的依赖包。
+
 
 ### 4.4 下载模型
 
