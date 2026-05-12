@@ -1,3 +1,6 @@
 .vscode
 .idea
 *.log
+
+/data
+/models_cache

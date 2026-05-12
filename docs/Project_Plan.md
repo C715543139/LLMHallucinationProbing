@@ -193,6 +193,7 @@ conda activate llm_hallucination
 ```powershell
 # 在项目根目录初始化 uv 项目
 uv init --name llm_hallucination_probing
+uv sync
 
 # 安装核心依赖（保底主路径，Qwen2-1.5B FP16 可直接运行）
 uv add torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
@@ -203,25 +204,25 @@ uv add tqdm datasets huggingface_hub
 uv add wandb pyyaml
 
 # 仅在尝试 Llama-2-7B 4-bit 且需要 Windows 兼容安装时使用（本计划默认执行环境为 Windows PowerShell，优先采用此方案）
-uv add https://github.com/jllllll/bitsandbytes-windows-webui/releases/download/wheels/bitsandbytes-0.43.3-py3-none-win_amd64.whl
+uv add https://github.com/jllllll/bitsandbytes-windows-webui/releases/download/wheels/bitsandbytes-0.41.1-py3-none-win_amd64.whl
 
 # 仅在执行 Subject token 分析时安装
 uv add spacy
 python -m spacy download en_core_web_sm
 
 # 安装开发工具（可选）
-uv add --dev ipykernel jupyter ipywidgets
-uv add --dev black ruff mypy
+uv add ipykernel jupyter ipywidgets
+uv add black ruff mypy
 ```
 
 ### 4.4 下载模型
 
 ```powershell
 # 说明：此处下载的是原始模型权重；Llama-2 的 4-bit 量化在模型加载阶段完成（通过 bitsandbytes）
-huggingface-cli download meta-llama/Llama-2-7b-hf --local-dir models_cache/Llama-2-7b-hf
+hf download meta-llama/Llama-2-7b-hf --local-dir models_cache/Llama-2-7b-hf
 
 # Qwen2-1.5B（FP16 直接可用，无需量化；Llama-2 需要申请访问权限后方可下载）
-huggingface-cli download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
+hf download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
 ```
 
 > **Windows 端注意事项**：
@@ -247,7 +248,8 @@ huggingface-cli download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
 
 ```powershell
 # 下载数据集到 data/raw/
-# 具体下载地址参考论文官方 GitHub：https://github.com/lingo-mol/llm_hallucination_probing
+# 具体下载地址为
+http://azariaa.com/Content/Datasets/true-false-dataset.zip
 ```
 
 ---
