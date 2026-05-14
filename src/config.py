@@ -57,13 +57,6 @@ class ModelConfig:
     primary_dtype: str = "auto"            # FP16 / BF16，由模型 config 决定
     primary_device_map: str = "auto"
 
-    # 可选模型（4-bit 量化路径）
-    secondary_name: str = "meta-llama/Llama-2-7b-hf"
-    secondary_local: str = "models_cache/Llama-2-7b-hf"
-    secondary_load_in_4bit: bool = True
-    secondary_dtype: str = "float16"       # 4-bit 计算精度
-    secondary_device_map: str = "auto"
-
     # 通用
     trust_remote_code: bool = False
     torch_dtype_fallback: str = "float16"

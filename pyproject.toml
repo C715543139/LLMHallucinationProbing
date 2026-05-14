@@ -35,9 +35,6 @@ dependencies = [
     "tqdm>=4.64,<5.0",
     "pyyaml>=6.0,<7.0",
 
-    # --- 可选: Llama-2 4-bit 量化 (Windows 需要社区版 wheel) ---
-    "bitsandbytes",
-
     # --- 可选: Subject token 分析 ---
     "spacy>=3.7,<4.0",
 
@@ -58,9 +55,6 @@ dependencies = [
 torch = { index = "pytorch-cu124" }
 torchvision = { index = "pytorch-cu124" }
 torchaudio = { index = "pytorch-cu124" }
-# bitsandbytes Windows 社区版
-bitsandbytes = { url = "https://github.com/jllllll/bitsandbytes-windows-webui/releases/download/wheels/bitsandbytes-0.41.1-py3-none-win_amd64.whl" }
-
 [[tool.uv.index]]
 name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"

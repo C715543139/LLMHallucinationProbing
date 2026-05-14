@@ -2,8 +2,7 @@
 模型加载模块。
 
 支持:
-    - 主路径: Qwen2-1.5B FP16（通过 device_map="auto" 加载）
-    - 可选路径: Llama-2-7B 4-bit 量化（通过 bitsandbytes）
+    - Qwen2-1.5B FP16（通过 device_map="auto" 加载）
 
 同时提供便捷的 GPU 检测与显存查询工具。
 """
@@ -158,118 +157,23 @@ def load_model_fp16(
 
 
 # ---------------------------------------------------------------------------
-# 模型加载（可选路径: 4-bit 量化）
-# ---------------------------------------------------------------------------
-
-def _check_bitsandbytes() -> bool:
-    """检查 bitsandbytes 是否可用。"""
-    try:
-        import bitsandbytes as bnb  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
-def load_model_4bit(
-    model_path: Optional[str] = None,
-    device_map: Optional[str] = None,
-    trust_remote_code: Optional[bool] = None,
-) -> ModelAndTokenizer:
-    """以 4-bit 量化精度加载模型（用于 Llama-2-7B 等较大模型）。
-
-    注意:
-        - 需要安装 bitsandbytes（Windows 上需使用社区版 wheel）。
-        - 若 bitsandbytes 不可用，将自动抛出 RuntimeError。
-
-    参数:
-        model_path: 模型路径，默认使用 config 中的 secondary_local。
-        device_map: 设备映射。
-        trust_remote_code: 是否允许执行远端代码。
-
-    返回:
-        (model, tokenizer)
-    """
-    if not _check_bitsandbytes():
-        raise RuntimeError(
-            "bitsandbytes 未安装或不可用。"
-            "请使用 `uv add` 安装 Windows 兼容版 wheel，"
-            "或改用 load_model_fp16() 加载较小模型。"
-        )
-
-    if model_path is None:
-        # 先尝试本地路径
-        local = config.paths.models_cache / Path(config.models.secondary_local).name
-        if local.exists() and (local / "config.json").exists():
-            model_path = str(local)
-        else:
-            alt = config.paths.project_root / config.models.secondary_local
-            if alt.exists() and (alt / "config.json").exists():
-                model_path = str(alt)
-            else:
-                model_path = config.models.secondary_name
-                logger.warning("本地模型不存在，尝试从 Hub 下载: %s", model_path)
-
-    if device_map is None:
-        device_map = config.models.secondary_device_map
-    if trust_remote_code is None:
-        trust_remote_code = config.models.trust_remote_code
-
-    logger.info("加载模型 (4-bit): %s", model_path)
-    logger.info("  device_map=%s", device_map)
-
-    from transformers import BitsAndBytesConfig
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_path,
-        trust_remote_code=trust_remote_code,
-    )
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        quantization_config=bnb_config,
-        device_map=device_map,
-        trust_remote_code=trust_remote_code,
-    )
-    model.eval()
-
-    _log_model_info(model)
-    return model, tokenizer
-
-
-# ---------------------------------------------------------------------------
 # 统一加载入口
 # ---------------------------------------------------------------------------
 
 def load_model(
-    use_4bit: bool = False,
     model_path: Optional[str] = None,
 ) -> ModelAndTokenizer:
     """统一模型加载入口。
 
-    根据 use_4bit 参数选择加载路径:
-        - False (默认): 使用 FP16/auto 加载（主路径，Qwen2-1.5B）
-        - True: 使用 4-bit 量化加载（可选路径，Llama-2-7B）
+    使用 FP16/auto 精度加载 Qwen2-1.5B 模型。
 
     参数:
-        use_4bit: 是否使用 4-bit 量化。
         model_path: 覆盖默认模型路径。
 
     返回:
         (model, tokenizer)
     """
-    if use_4bit:
-        return load_model_4bit(model_path=model_path)
-    else:
-        return load_model_fp16(model_path=model_path)
+    return load_model_fp16(model_path=model_path)
 
 
 # ---------------------------------------------------------------------------

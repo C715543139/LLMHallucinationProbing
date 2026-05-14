@@ -14,12 +14,10 @@
 
 ### 1.2 实验模型与数据
 
-| 项             | 选择                                                                  | 说明                                                                                    |
-| -------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| 优先尝试模型   | Llama-2-7B（4-bit 量化）                                              | 课程推荐模型；若环境稳定，优先用于主实验                                                |
-| 保底主实验模型 | Qwen2-1.5B（FP16）                                                    | 在 Windows + 8GB 显存环境下更稳妥，可完整完成课程要求                                   |
-| 使用策略       | 先完成 Qwen2-1.5B 端到端跑通，再尝试将核心实验迁移到 Llama-2-7B 4-bit | 降低环境风险                                                                            |
-| 数据集         | True-False Dataset                                                    | 6 个子领域：Cities, Inventions, Chemical Elements, Animals, Companies, Scientific Facts |
+| 项       | 选择               | 说明                                                                                    |
+| -------- | ------------------ | --------------------------------------------------------------------------------------- |
+| 实验模型 | Qwen2-1.5B（FP16） | 在 Windows + 8GB 显存环境下稳定运行，可完整完成课程要求                                  |
+| 数据集   | True-False Dataset | 6 个子领域：Cities, Inventions, Chemical Elements, Animals, Companies, Scientific Facts |
 
 ### 1.3 实验协议
 
@@ -50,15 +48,12 @@
 
 ### 2.2 显存预算分析
 
-| 模型       | 精度            | 显存占用    | 是否可运行                                            |
-| ---------- | --------------- | ----------- | ----------------------------------------------------- |
-| Llama-2-7B | FP16            | ~14 GB      | 超出 8GB                                              |
-| Llama-2-7B | 8-bit 量化      | ~7-8 GB     | 临界（含推理开销可能不足）                            |
-| Llama-2-7B | **4-bit (NF4)** | **~4-5 GB** | 可尝试，但在提取 hidden states / attention 时余量有限 |
-| Qwen2-1.5B | FP16            | ~3 GB       | 完全可运行                                            |
-| Qwen2-1.5B | FP16 (含梯度)   | ~6 GB       | 适合小 batch 的特征提取或参数高效实验                 |
+| 模型       | 精度          | 显存占用 | 是否可运行                                        |
+| ---------- | ------------- | -------- | ------------------------------------------------- |
+| Qwen2-1.5B | FP16          | ~3 GB    | 完全可运行                                        |
+| Qwen2-1.5B | FP16 (含梯度) | ~6 GB    | 适合小 batch 的特征提取或参数高效实验             |
 
-**结论**：优先以 Qwen2-1.5B FP16 作为保底主实验模型，完成端到端实验流程；在 Windows + 8GB 环境下确认 bitsandbytes 兼容性后，可尝试将核心实验迁移到 Llama-2-7B 4-bit 进行补充验证（注意提取 hidden states / attention 时余量有限）。Qwen2-1.5B 可直接支持小 batch 的特征提取与参数高效实验。
+**结论**：Qwen2-1.5B FP16 在 8GB 显存下完全可运行，可直接支持小 batch 的特征提取与参数高效实验。
 
 ### 2.3 软件环境
 
@@ -69,7 +64,6 @@
 | uv                | latest           | Python 包管理（替代 pip）        |
 | PyTorch           | 2.4+ (CUDA 12.4) | 深度学习框架                     |
 | Transformers      | 4.44+            | 模型加载与推理                   |
-| bitsandbytes      | optional         | Llama-2-7B 4-bit 量化的可选支持  |
 | PEFT / Accelerate | latest           | 高效推理                         |
 | scikit-learn      | 1.5+             | 分类器训练                       |
 | spaCy             | optional         | Subject token 自动抽取的可选依赖 |
@@ -118,7 +112,7 @@ LLMHallucinationProbing/
 │   │
 │   ├── models/                     # 模型加载与工具
 │   │   ├── __init__.py
-│   │   └── loader.py               # 模型加载（FP16 主路径，兼容可选 4-bit 量化）
+│   │   └── loader.py               # 模型加载（FP16）
 │   │
 │   ├── features/                   # 特征提取
 │   │   ├── __init__.py
@@ -186,7 +180,7 @@ conda activate llm_hallucination
 
 ### 4.3 使用 uv 安装项目依赖
 
-> **说明**：所有依赖已预先写入 `pyproject.toml`（含 CUDA 版 PyTorch 源与 Windows bitsandbytes 兼容版），只需以下两步即可完成环境搭建。`uv add` 无需手动执行。
+> **说明**：所有依赖已预先写入 `pyproject.toml`（含 CUDA 版 PyTorch 源），只需以下两步即可完成环境搭建。`uv add` 无需手动执行。
 
 ```powershell
 # 在 Conda 环境中安装 uv
@@ -209,7 +203,6 @@ uv sync
 | 机器学习 | `scikit-learn`, `scipy` |
 | 可视化 | `matplotlib`, `seaborn` |
 | 工具 | `tqdm`, `pyyaml` |
-| 可选：4-bit 量化 | `bitsandbytes`（Windows 社区版 wheel） |
 | 可选：Subject token | `spacy` |
 | 可选：实验跟踪 | `wandb` |
 | 开发工具 | `ipykernel`, `jupyter`, `ipywidgets`, `black`, `ruff`, `mypy` |
@@ -225,10 +218,7 @@ uv sync
 ### 4.4 下载模型
 
 ```powershell
-# 说明：此处下载的是原始模型权重；Llama-2 的 4-bit 量化在模型加载阶段完成（通过 bitsandbytes）
-hf download meta-llama/Llama-2-7b-hf --local-dir models_cache/Llama-2-7b-hf
-
-# Qwen2-1.5B（FP16 直接可用，无需量化；Llama-2 需要申请访问权限后方可下载）
+# Qwen2-1.5B（FP16 直接可用，无需量化）
 hf download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
 ```
 
@@ -271,10 +261,10 @@ http://azariaa.com/Content/Datasets/true-false-dataset.zip
 | ---- | ------------------------------------------ | ----------------------------------------- | ---------- |
 | P1.1 | 安装 Conda、uv，创建 Python 环境           | `pyproject.toml`, `uv.lock`               | A          |
 | P1.2 | 配置 CUDA 环境，验证 GPU 可用              | GPU 测试脚本                              | A          |
-| P1.3 | 下载 Llama-2-7B 与 Qwen2-1.5B 原始模型权重 | `models_cache/`                           | A          |
+| P1.3 | 下载 Qwen2-1.5B 模型权重                   | `models_cache/`                           | A          |
 | P1.4 | 下载 True-False Dataset 6 个子集           | `data/raw/`                               | B          |
 | P1.5 | 撰写数据加载模块 `src/data/dataset.py`     | 可加载数据的 Dataset 类                   | B          |
-| P1.6 | 实现模型加载模块 `src/models/loader.py`    | 支持 FP16 主路径与可选 4-bit 量化的加载器 | A          |
+| P1.6 | 实现模型加载模块 `src/models/loader.py`    | 支持 FP16 的模型加载器                    | A          |
 | P1.7 | 划分 train/val/test 并预处理               | `data/processed/`                         | B          |
 | P1.8 | 搭建全局配置文件 `src/config.py`           | 统一配置入口                              | A          |
 
@@ -507,8 +497,6 @@ ffn_features = {
 - 至少完成一个进阶方向（注意力或 FFN）的小规模实验与对比
 - 输出完整的代码、图表、实验记录和报告初稿
 
-若环境条件允许，再使用 Llama-2-7B 4-bit 对核心实验进行补充验证，并在报告中对比两种模型的发现。
-
 ### 报告图表清单
 
 课程文档要求 3.1 和 3.2 部分提供详尽的实验图表，提前规划以下图表清单：
@@ -527,30 +515,14 @@ ffn_features = {
 
 ## 六、关键风险与对策
 
-| 风险                                     | 概率 | 影响 | 对策                                                                    |
-| ---------------------------------------- | ---- | ---- | ----------------------------------------------------------------------- |
-| RTX 4060 8GB 显存不足，即使 4-bit 也 OOM | 低   | 高   | 使用 Qwen2-1.5B 完成实验；在报告中说明限制                              |
-| Llama-2 访问权限未获批                   | 中   | 中   | 使用 Qwen2-1.5B / Qwen2-7B 等开源替代                                   |
-| HuggingFace 模型下载速度慢               | 高   | 中   | 使用 hf-mirror.com 镜像                                                 |
-| 4-bit 量化下隐藏状态精度下降，分类效果差 | 中   | 中   | 使用 8-bit 量化或缩小 batch size；使用 Qwen2-1.5B FP16 做对比           |
-| Windows 路径兼容性问题（`\\` vs `/`）    | 中   | 低   | 统一使用 `pathlib.Path`；避免硬编码路径                                 |
-| bitsandbytes Windows 兼容性问题          | 高   | 高   | 使用预编译的 bitsandbytes-windows 版本；或降级使用 8-bit via accelerate |
-| 时间不足无法完成进阶方向                 | 中   | 中   | 优先完成基础+分析任务（40分），进阶部分选择最简单的方向                 |
+| 风险                                     | 概率 | 影响 | 对策                                                    |
+| ---------------------------------------- | ---- | ---- | ------------------------------------------------------- |
+| RTX 4060 8GB 显存不足                     | 低   | 高   | Qwen2-1.5B FP16 仅需 ~3GB，余量充足；在报告中说明限制   |
+| HuggingFace 模型下载速度慢               | 高   | 中   | 使用 hf-mirror.com 镜像                                 |
+| Windows 路径兼容性问题（`\\` vs `/`）    | 中   | 低   | 统一使用 `pathlib.Path`；避免硬编码路径                 |
+| 时间不足无法完成进阶方向                 | 中   | 中   | 优先完成基础+分析任务（40分），进阶部分选择最简单的方向 |
 
-### Windows + bitsandbytes 特别注意
 
-Windows 上使用 bitsandbytes 4-bit 量化需要特殊处理：
-
-```powershell
-# 方案 1：使用社区维护的 Windows 兼容版
-uv add https://github.com/jllllll/bitsandbytes-windows-webui/releases/download/wheels/bitsandbytes-0.43.3-py3-none-win_amd64.whl
-
-# 方案 2：如果方案 1 失败，使用 accelerate 的 device_map + 8-bit
-# 在代码中设置：
-# model = AutoModelForCausalLM.from_pretrained(..., load_in_8bit=True, device_map="auto")
-
-# 方案 3：直接使用 Qwen2-1.5B FP16（最稳妥，3GB 显存足够）
-```
 
 ---
 
