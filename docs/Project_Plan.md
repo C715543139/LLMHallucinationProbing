@@ -16,7 +16,7 @@
 
 | 项       | 选择               | 说明                                                                                    |
 | -------- | ------------------ | --------------------------------------------------------------------------------------- |
-| 实验模型 | Qwen2-1.5B（FP16） | 在 Windows + 8GB 显存环境下稳定运行，可完整完成课程要求                                  |
+| 实验模型 | Qwen2-1.5B（FP16） | 在 Windows + 8GB 显存环境下稳定运行，可完整完成课程要求                                 |
 | 数据集   | True-False Dataset | 6 个子领域：Cities, Inventions, Chemical Elements, Animals, Companies, Scientific Facts |
 
 ### 1.3 实验协议
@@ -48,10 +48,10 @@
 
 ### 2.2 显存预算分析
 
-| 模型       | 精度          | 显存占用 | 是否可运行                                        |
-| ---------- | ------------- | -------- | ------------------------------------------------- |
-| Qwen2-1.5B | FP16          | ~3 GB    | 完全可运行                                        |
-| Qwen2-1.5B | FP16 (含梯度) | ~6 GB    | 适合小 batch 的特征提取或参数高效实验             |
+| 模型       | 精度          | 显存占用 | 是否可运行                            |
+| ---------- | ------------- | -------- | ------------------------------------- |
+| Qwen2-1.5B | FP16          | ~3 GB    | 完全可运行                            |
+| Qwen2-1.5B | FP16 (含梯度) | ~6 GB    | 适合小 batch 的特征提取或参数高效实验 |
 
 **结论**：Qwen2-1.5B FP16 在 8GB 显存下完全可运行，可直接支持小 batch 的特征提取与参数高效实验。
 
@@ -68,6 +68,8 @@
 | scikit-learn      | 1.5+             | 分类器训练                       |
 | spaCy             | optional         | Subject token 自动抽取的可选依赖 |
 | wandb             | latest           | 实验跟踪（可选）                 |
+| pytest            | 8.0+             | 单元测试与集成测试框架           |
+| pytest-cov        | 5.0+             | 测试覆盖率统计                   |
 
 > **复现约定**：软件环境表中的版本范围用于说明依赖原则；实际提交与复现实验时，以 `pyproject.toml` 与 `uv.lock` 中维护的项目依赖配置为准。
 
@@ -131,7 +133,15 @@ LLMHallucinationProbing/
 │       ├── metrics.py              # 评估指标
 │       └── logging_utils.py        # 日志与实验管理
 │
+├── tests/                          # 测试套件（pytest）
+│   ├── conftest.py                 # 公共 Fixture（路径等会话级共享）
+│   └── phase1/                     # Phase 1 完成情况验证
+│       ├── test_config.py          # P1.8 全局配置模块
+│       ├── test_data.py            # P1.4/P1.5/P1.7 数据加载与预处理
+│       └── test_model.py           # P1.2/P1.3/P1.6/M1 模型加载与前向传播
+│
 ├── scripts/                        # 运行脚本（PowerShell）
+│   ├── check_phase1.ps1            # Phase 1 端到端完成情况检验
 │   ├── run_baseline.ps1            # Windows 下运行基础方法
 │   ├── run_analysis.ps1            # Windows 下运行分析实验
 │   └── run_advanced.ps1            # Windows 下运行进阶实验
@@ -195,25 +205,27 @@ uv sync
 
 > **依赖清单**（由 `pyproject.toml` 统一管理，无需手动安装）：
 
-| 类别 | 包含的包 |
-|------|---------|
-| 深度学习框架 | `torch`, `torchvision`, `torchaudio`（CUDA 12.4 源） |
-| 模型与推理 | `transformers`, `accelerate`, `peft`, `sentencepiece`, `protobuf` |
-| 数据处理 | `datasets`, `numpy`, `pandas`, `huggingface-hub` |
-| 机器学习 | `scikit-learn`, `scipy` |
-| 可视化 | `matplotlib`, `seaborn` |
-| 工具 | `tqdm`, `pyyaml` |
-| 可选：Subject token | `spacy` |
-| 可选：实验跟踪 | `wandb` |
-| 开发工具 | `ipykernel`, `jupyter`, `ipywidgets`, `black`, `ruff`, `mypy` |
+| 类别                | 包含的包                                                          |
+| ------------------- | ----------------------------------------------------------------- |
+| 深度学习框架        | `torch`, `torchvision`, `torchaudio`（CUDA 12.4 源）              |
+| 模型与推理          | `transformers`, `accelerate`, `peft`, `sentencepiece`, `protobuf` |
+| 数据处理            | `datasets`, `numpy`, `pandas`, `huggingface-hub`                  |
+| 机器学习            | `scikit-learn`, `scipy`                                           |
+| 可视化              | `matplotlib`, `seaborn`                                           |
+| 工具                | `tqdm`, `pyyaml`                                                  |
+| 可选：Subject token | `spacy`                                                           |
+| 可选：实验跟踪      | `wandb`                                                           |
+| 开发工具            | `ipykernel`, `jupyter`, `ipywidgets`, `black`, `ruff`, `mypy`     |
+| 测试                | `pytest`, `pytest-cov`                                            |
 
 > ⚠️ **重要**：后续所有命令执行前，必须依次激活两个环境：
+>
 > ```powershell
 > conda activate llm_hallucination
 > .\.venv\Scripts\activate.ps1
 > ```
+>
 > 未激活环境将导致 `python` 指向错误的解释器，或缺少必要的依赖包。
-
 
 ### 4.4 下载模型
 
@@ -257,16 +269,17 @@ http://azariaa.com/Content/Datasets/true-false-dataset.zip
 
 ### Phase 1：环境搭建与数据准备（1-2 天）| 5.12 – 5.14
 
-| 编号 | 任务                                       | 输出物                                    | 负责人建议 |
-| ---- | ------------------------------------------ | ----------------------------------------- | ---------- |
-| P1.1 | 安装 Conda、uv，创建 Python 环境           | `pyproject.toml`, `uv.lock`               | A          |
-| P1.2 | 配置 CUDA 环境，验证 GPU 可用              | GPU 测试脚本                              | A          |
-| P1.3 | 下载 Qwen2-1.5B 模型权重                   | `models_cache/`                           | A          |
-| P1.4 | 下载 True-False Dataset 6 个子集           | `data/raw/`                               | B          |
-| P1.5 | 撰写数据加载模块 `src/data/dataset.py`     | 可加载数据的 Dataset 类                   | B          |
-| P1.6 | 实现模型加载模块 `src/models/loader.py`    | 支持 FP16 的模型加载器                    | A          |
-| P1.7 | 划分 train/val/test 并预处理               | `data/processed/`                         | B          |
-| P1.8 | 搭建全局配置文件 `src/config.py`           | 统一配置入口                              | A          |
+| 编号 | 任务                                    | 输出物                                      | 负责人建议 |
+| ---- | --------------------------------------- | ------------------------------------------- | ---------- |
+| P1.1 | 安装 Conda、uv，创建 Python 环境        | `pyproject.toml`, `uv.lock`                 | A          |
+| P1.2 | 配置 CUDA 环境，验证 GPU 可用           | GPU 测试脚本                                | A          |
+| P1.3 | 下载 Qwen2-1.5B 模型权重                | `models_cache/`                             | A          |
+| P1.4 | 下载 True-False Dataset 6 个子集        | `data/raw/`                                 | B          |
+| P1.5 | 撰写数据加载模块 `src/data/dataset.py`  | 可加载数据的 Dataset 类                     | B          |
+| P1.6 | 实现模型加载模块 `src/models/loader.py` | 支持 FP16 的模型加载器                      | A          |
+| P1.7 | 划分 train/val/test 并预处理            | `data/processed/`                           | B          |
+| P1.8 | 搭建全局配置文件 `src/config.py`        | 统一配置入口                                | A          |
+| P1.9 | 编写 Phase 1 验证测试，运行并报告结果   | `tests/phase1/`，`scripts/check_phase1.ps1` | A+B        |
 
 **里程碑 M1**: 能够在 GPU 上成功加载目标模型，并对单条陈述语句完成一次完整的前向传播，输出 hidden states。
 
@@ -515,14 +528,12 @@ ffn_features = {
 
 ## 六、关键风险与对策
 
-| 风险                                     | 概率 | 影响 | 对策                                                    |
-| ---------------------------------------- | ---- | ---- | ------------------------------------------------------- |
-| RTX 4060 8GB 显存不足                     | 低   | 高   | Qwen2-1.5B FP16 仅需 ~3GB，余量充足；在报告中说明限制   |
-| HuggingFace 模型下载速度慢               | 高   | 中   | 使用 hf-mirror.com 镜像                                 |
-| Windows 路径兼容性问题（`\\` vs `/`）    | 中   | 低   | 统一使用 `pathlib.Path`；避免硬编码路径                 |
-| 时间不足无法完成进阶方向                 | 中   | 中   | 优先完成基础+分析任务（40分），进阶部分选择最简单的方向 |
-
-
+| 风险                                  | 概率 | 影响 | 对策                                                    |
+| ------------------------------------- | ---- | ---- | ------------------------------------------------------- |
+| RTX 4060 8GB 显存不足                 | 低   | 高   | Qwen2-1.5B FP16 仅需 ~3GB，余量充足；在报告中说明限制   |
+| HuggingFace 模型下载速度慢            | 高   | 中   | 使用 hf-mirror.com 镜像                                 |
+| Windows 路径兼容性问题（`\\` vs `/`） | 中   | 低   | 统一使用 `pathlib.Path`；避免硬编码路径                 |
+| 时间不足无法完成进阶方向              | 中   | 中   | 优先完成基础+分析任务（40分），进阶部分选择最简单的方向 |
 
 ---
 
