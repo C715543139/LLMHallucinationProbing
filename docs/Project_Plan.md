@@ -40,7 +40,7 @@
 - **Phase 2 已完成**：PPL 与 SAPLMA 两类基线方法已实现，并完成 `tests/phase2/` 自动化测试
 - **Phase 3 尚未开始实现**：`src/analysis/` 当前仅保留 `__init__.py`，层分析、token 位置分析和可视化模块仍待补齐
 - **Phase 4 尚未开始实现**：注意力特征、FFN 特征与进阶方法模块尚未在 `src/` 中落地
-- **里程碑文档已建立**：当前已新增 `docs/milestone/M1.md` 与 `docs/milestone/M2.md` 用于记录阶段成果
+- **里程碑文档已整合**：M1 与 M2 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
 
 ---
 
@@ -95,9 +95,6 @@ LLMHallucinationProbing/
 │   ├── Project_Plan.md
 │   ├── Proposal.md
 │   ├── 利用大语言模型内部状态进行幻觉检测.md
-│   ├── milestone/
-│   │   ├── M1.md
-│   │   └── M2.md
 │   └── revision/
 │       └── Project_Plan_review_v*.md
 ├── data/
@@ -325,7 +322,108 @@ http://azariaa.com/Content/Datasets/true-false-dataset.zip
 - `src/config.py`、`src/data/dataset.py`、`src/data/preprocessing.py`、`src/models/loader.py` 已实现
 - `tests/phase1/` 与 `scripts/check_phase1.ps1` 已建立
 - `data/processed/train.pt`、`val.pt`、`test.pt` 已生成
-- `docs/milestone/M1.md` 已记录 Phase 1 实际完成情况
+- Phase 1 的阶段性记录已同步整合到本节下方，不再单独保留里程碑文档
+
+#### M1 里程碑整合
+
+##### 里程碑定位
+
+- **对应阶段**：Phase 1
+- **目标**：完成基础环境、数据、模型与配置模块搭建，并满足“能够在 GPU 上成功加载目标模型，对单条陈述完成一次前向传播并输出 hidden states”的要求
+- **对应任务范围**：P1.1–P1.9 与里程碑 M1
+
+##### 已完成的具体任务
+
+###### 1. 环境与依赖准备
+
+- 已建立项目根目录与 `src/`、`tests/`、`scripts/` 等工程结构
+- 已配置 Python 项目依赖管理文件：`pyproject.toml`、`uv.lock`
+- 已建立统一测试入口与 Phase 1 验证脚本：`tests/phase1/`、`scripts/check_phase1.ps1`
+
+###### 2. 数据准备与数据集封装
+
+- 已完成 True-False Dataset 的本地准备，原始数据位于 `data/raw/`
+- 已生成预处理后的训练集、验证集、测试集文件，位于 `data/processed/`
+- 已实现原始 CSV 数据加载、合并逻辑与 `TrueFalseDataset` 数据集封装
+- 已支持训练集 / 验证集 / 测试集的保存与加载
+
+###### 3. 模型加载与前向传播基础能力
+
+- 已建立本地模型缓存目录 `models_cache/Qwen2-1.5B/`
+- 已实现模型加载模块 `src/models/loader.py`
+- 已支持设备信息查询与 CUDA / GPU 可用性检测
+- 已能在真实模型上完成单条陈述的前向传播
+- 已能输出 `hidden_states` 与 `logits`
+
+###### 4. 全局配置与项目约定
+
+- 已建立统一配置入口：`src/config.py`
+- 配置已覆盖路径、模型、数据划分比例、随机种子、分类器超参数与特征提取默认层设置
+
+###### 5. Phase 1 自动化验证
+
+- 已完成配置模块测试：`tests/phase1/test_config.py`
+- 已完成数据模块测试：`tests/phase1/test_data.py`
+- 已完成模型模块测试：`tests/phase1/test_model.py`
+- 已建立公共 fixture：`tests/conftest.py`
+- 测试已覆盖配置结构、原始数据存在性、数据集封装与序列化、模型权重完整性、模型加载与 hidden states 输出
+
+##### 对应文件结构
+
+以下结构是 M1 相关核心文件：
+
+```text
+LLMHallucinationProbing/
+├── data/
+│   ├── raw/
+│   │   ├── animals_true_false.csv
+│   │   ├── cities_true_false.csv
+│   │   ├── companies_true_false.csv
+│   │   ├── elements_true_false.csv
+│   │   ├── facts_true_false.csv
+│   │   ├── generated_true_false.csv
+│   │   └── inventions_true_false.csv
+│   └── processed/
+│       ├── train.pt
+│       ├── val.pt
+│       └── test.pt
+├── models_cache/
+│   └── Qwen2-1.5B/
+│       ├── config.json
+│       ├── tokenizer.json
+│       ├── tokenizer_config.json
+│       └── model.safetensors
+├── scripts/
+│   └── check_phase1.ps1
+├── src/
+│   ├── config.py
+│   ├── data/
+│   │   ├── dataset.py
+│   │   └── preprocessing.py
+│   └── models/
+│       └── loader.py
+└── tests/
+    ├── conftest.py
+    └── phase1/
+        ├── test_config.py
+        ├── test_data.py
+        └── test_model.py
+```
+
+##### 实践要点
+
+- **路径管理统一使用 `pathlib.Path`**：在 Windows 环境下统一使用 `Path` 对象，避免硬编码路径导致的兼容性问题
+- **数据划分强调可复现与防泄漏**：训练 / 验证 / 测试划分清晰，集合无重叠，并尽量保持真 / 假样本共存
+- **模型侧优先验证最小闭环**：先验证模型可加载、tokenizer 可用、单句前向传播成功、`hidden_states` 数量与层数一致、最后 token 表示可稳定提取
+- **测试先行为后续扩展保留接口契约**：`TrueFalseDataset` 字段结构、`.pt` 文件加载方式、模型输出 hidden states 的约定均已在 Phase 1 固定下来
+
+##### M1 达成情况总结
+
+- 数据、模型、配置与测试基础设施已经搭建完成
+- Qwen2-1.5B 本地权重可被识别与加载
+- 单条陈述可完成一次前向传播并稳定输出 hidden states
+
+**结论**：项目已具备进入 Phase 2 基线方法实现与对比实验的条件。
 
 ---
 
@@ -401,7 +499,102 @@ def extract_last_token_hidden(model, tokenizer, statement, layer_idx=-1):
   - `saplma_logistic_results.json`
   - `saplma_mlp_results.json`
 - `tests/phase2/` 已建立并通过真实代码验证
-- `docs/milestone/M2.md` 已记录 Phase 2 实际完成情况
+- Phase 2 的阶段性记录已同步整合到本节下方，不再单独保留里程碑文档
+
+#### M2 里程碑整合
+
+##### 里程碑定位
+
+- **对应阶段**：Phase 2
+- **目标**：完成基于序列概率 / 困惑度的 PPL 方法、基于隐藏状态分类的 SAPLMA 方法，并建立对应的自动化测试与最小端到端验证流程
+- **对应任务范围**：P2.1–P2.7 与里程碑 M2
+
+##### 已完成的具体任务
+
+###### 1. 概率方法（PPL）实现
+
+- 已在 `src/methods/probability.py` 中实现单条陈述 PPL 计算：`compute_statement_ppl`
+- 已支持多条陈述批量计算 PPL：`compute_ppl_scores`
+- 已支持验证集阈值调优：`tune_ppl_threshold`、`find_best_ppl_threshold`、`optimize_ppl_threshold`
+- 已支持按“PPL 越低越可能为真”的约定进行阈值搜索与评估
+- 已支持完整 PPL 流水线评估：`evaluate_ppl_method`
+
+###### 2. 隐藏状态特征提取实现
+
+- 已在 `src/features/hidden_states.py` 中实现单条陈述指定层最后 token 表示提取：`extract_last_token_hidden`
+- 已支持批量提取隐藏状态：`extract_hidden_states`
+- 已支持提取所有层的隐藏状态：`extract_all_layer_hidden_states`
+- 已支持从 `TrueFalseDataset` 直接提取特征与标签：`extract_hidden_states_dataset`
+
+###### 3. SAPLMA 分类器实现
+
+- 已支持训练 SAPLMA 分类器：`train_saplma_classifier`、`train_hidden_state_classifier`、`fit_saplma_classifier`
+- 已支持预测标签：`predict_with_classifier`、`predict_saplma`、`predict_labels`
+- 已支持输出概率分数：`predict_proba_with_classifier`、`predict_saplma_proba`、`predict_probabilities`
+- 已支持完整 SAPLMA 实验流水线：`train_and_evaluate`、`run_saplma_experiment`、`run_saplma_full`
+
+###### 4. Phase 2 测试与边界验证
+
+- 已建立 `tests/phase2/` 测试套件，并在真实代码上完成验证
+- 测试覆盖 PPL 方法接口存在性与基本行为
+- 测试覆盖隐藏状态提取的层索引语义、返回维度与数值稳定性
+- 测试覆盖 SAPLMA 训练、预测、概率输出与真实模型下的小规模端到端流程
+- 测试覆盖多项边界情形，包括批量 PPL 顺序一致性、常数分数下的阈值稳定性、不含 embedding output 的兼容性、非法分类器类型异常处理与无 `predict_proba` 时的概率退化逻辑
+
+###### 5. 真实代码验证结果
+
+- `tests/phase2/` 全量通过
+- 当前累计通过数为 **31 passed**
+- 说明 PPL 与 SAPLMA 的最小闭环已经在真实代码与小规模真实模型验证下打通
+
+##### 对应文件结构
+
+以下结构是 M2 相关核心文件：
+
+```text
+LLMHallucinationProbing/
+├── src/
+│   ├── features/
+│   │   └── hidden_states.py
+│   ├── methods/
+│   │   ├── probability.py
+│   │   └── saplma.py
+│   ├── data/
+│   │   └── dataset.py
+│   └── utils/
+│       └── metrics.py
+├── tests/
+│   └── phase2/
+│       ├── __init__.py
+│       ├── conftest.py
+│       ├── test_probability.py
+│       ├── test_hidden_states.py
+│       └── test_saplma.py
+├── data/
+│   └── processed/
+│       ├── train.pt
+│       ├── val.pt
+│       └── test.pt
+└── models_cache/
+    └── Qwen2-1.5B/
+```
+
+##### 实践要点
+
+- **明确两类基线方法的接口边界**：PPL 负责生成连续分数并通过阈值完成判别，SAPLMA 负责将隐藏状态映射为监督分类问题，因此需要独立设计分数函数、特征提取、训练、预测和统一评估入口
+- **层索引语义必须与文档一致**：层号按 Transformer block 输出统计，不把 embedding output 计入层号，并兼容含 / 不含 embedding output 的返回结构
+- **PPL 阈值方向不能反**：PPL 越低表示模型越认可该陈述，阈值搜索与评估实现必须遵守这一方向约定
+- **测试不仅验证接口存在，还验证边界**：需要同时覆盖 dummy model、真实模型、批量与单样本逻辑、返回维度稳定性、异常路径与合理退化逻辑
+- **延迟导入降低环境噪声影响**：按需导入可减少 Windows 环境下原生依赖初始化带来的额外干扰
+
+##### M2 达成情况总结
+
+- PPL 基线方法可运行，并支持阈值调优
+- SAPLMA 基线方法可运行，并支持 LR / MLP 两类分类器
+- 隐藏状态提取、训练、预测、评估链路已打通
+- Phase 2 自动化测试与边界测试已建立并通过
+
+**结论**：项目已经完成 Phase 2 所要求的两类基础方法实现与最小验证，可继续进入 Phase 3 的层分析与 token 位置分析阶段。
 
 ---
 
