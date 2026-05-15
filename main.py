@@ -2,9 +2,12 @@
 LLM Hallucination Probing — 主入口。
 
 用法:
-    python -s main.py              # 显示项目状态
-    python -s main.py preprocess   # 运行数据预处理
-    python -s main.py test-gpu     # 测试 GPU 与模型加载
+    python -s main.py                  # 显示项目状态
+    python -s main.py preprocess       # 运行数据预处理
+    python -s main.py test-gpu         # 测试 GPU 与模型加载
+    python -s main.py phase2           # 运行 Phase 2 全部实验
+    python -s main.py phase2-ppl       # 仅运行 PPL 方法
+    python -s main.py phase2-saplma    # 仅运行 SAPLMA 方法
 
 注意: 运行前必须依次激活环境:
     conda activate llm_hallucination
@@ -101,6 +104,210 @@ def test_gpu() -> None:
     print("✅ 模型前向传播测试通过!")
 
 
+# ===========================================================================
+# Phase 2 实验
+# ===========================================================================
+
+def _load_model_and_data():
+    """加载模型和数据集的通用辅助函数。"""
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    from src.models.loader import load_model, print_device_info
+    from src.data.preprocessing import load_processed_data
+
+    print_device_info()
+
+    print("\n加载模型 (Qwen2-1.5B FP16)...")
+    model, tokenizer = load_model()
+    print(f"模型设备: {next(model.parameters()).device}")
+
+    print("\n加载预处理数据...")
+    train_ds, val_ds, test_ds = load_processed_data()
+    print(train_ds.summary())
+
+    return model, tokenizer, train_ds, val_ds, test_ds
+
+
+def phase2_ppl() -> None:
+    """Phase 2: 运行 PPL 基线方法评估。"""
+    model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
+
+    from src.methods.probability import evaluate_ppl_method
+    import json
+    import numpy as np
+
+    results = evaluate_ppl_method(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_ds,
+        val_dataset=val_ds,
+        test_dataset=test_ds,
+        batch_size=8,
+        max_length=128,
+        threshold_metric="f1",
+    )
+
+    # 保存结果
+    from src.config import config
+    out_dir = config.paths.results_dir / "baseline"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存指标摘要
+    summary = {
+        "method": results["method"],
+        "threshold": results["threshold"],
+        "train": results["train"],
+        "val": results["val"],
+        "test": results["test"],
+    }
+    with open(out_dir / "ppl_results.json", "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
+
+    print(f"\nPPL 结果已保存至 {out_dir / 'ppl_results.json'}")
+    print(f"测试集: Acc={results['test']['accuracy']:.4f}, "
+          f"Macro-F1={results['test']['macro_f1']:.4f}, "
+          f"AUROC={results['test']['auroc']:.4f}")
+
+
+def phase2_saplma() -> None:
+    """Phase 2: 运行 SAPLMA 方法评估（LR + MLP）。"""
+    model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
+
+    from src.methods.saplma import run_saplma_full
+    import json
+
+    results = run_saplma_full(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_ds,
+        val_dataset=val_ds,
+        test_dataset=test_ds,
+        layer_idx=-1,
+        pooling="last",
+        batch_size=8,
+        max_length=128,
+    )
+
+    from src.config import config
+    out_dir = config.paths.results_dir / "baseline"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存摘要
+    for clf_name, clf_result in results.items():
+        summary = {
+            "method": clf_result["method"],
+            "layer_idx": clf_result["layer_idx"],
+            "pooling": clf_result["pooling"],
+            "num_seeds": clf_result["num_seeds"],
+            "test_summary": clf_result["test_summary"],
+        }
+        fname = f"saplma_{clf_name}_results.json"
+        with open(out_dir / fname, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
+        print(f"\nSAPLMA ({clf_name}) 结果已保存至 {out_dir / fname}")
+        ts = clf_result["test_summary"]
+        print(f"  Accuracy:  {ts['accuracy']['mean']:.4f} ± {ts['accuracy']['std']:.4f}")
+        print(f"  Macro-F1:  {ts['macro_f1']['mean']:.4f} ± {ts['macro_f1']['std']:.4f}")
+        print(f"  AUROC:     {ts['auroc']['mean']:.4f} ± {ts['auroc']['std']:.4f}")
+
+
+def phase2() -> None:
+    """Phase 2: 运行全部基线实验（PPL + SAPLMA LR + SAPLMA MLP）。"""
+    import time
+    import json
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    t_start = time.time()
+
+    print("=" * 60)
+    print("  Phase 2: 基础方法实现与评估")
+    print("=" * 60)
+
+    # 一次性加载模型和数据
+    from src.models.loader import load_model, print_device_info
+    from src.data.preprocessing import load_processed_data
+    from src.config import config
+
+    print_device_info()
+
+    print("\n加载模型 (Qwen2-1.5B FP16)...")
+    model, tokenizer = load_model()
+    print(f"模型设备: {next(model.parameters()).device}")
+
+    print("\n加载预处理数据...")
+    train_ds, val_ds, test_ds = load_processed_data()
+    print(train_ds.summary())
+
+    out_dir = config.paths.results_dir / "baseline"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # ---- P2.1-P2.2: PPL 方法 ------------------------------------------------
+    print("\n" + "=" * 50)
+    print("  P2.1-P2.2: PPL 方法")
+    print("=" * 50)
+
+    from src.methods.probability import evaluate_ppl_method
+    import numpy as np
+
+    ppl_results = evaluate_ppl_method(
+        model=model, tokenizer=tokenizer,
+        train_dataset=train_ds, val_dataset=val_ds, test_dataset=test_ds,
+        batch_size=8, max_length=128, threshold_metric="f1",
+    )
+    ppl_summary = {k: v for k, v in ppl_results.items()
+                   if k in ("method", "threshold", "train", "val", "test")}
+    with open(out_dir / "ppl_results.json", "w", encoding="utf-8") as f:
+        json.dump(ppl_summary, f, indent=2, ensure_ascii=False, default=float)
+    print(f"PPL 结果已保存至 {out_dir / 'ppl_results.json'}")
+    print(f"测试集: Acc={ppl_results['test']['accuracy']:.4f}, "
+          f"Macro-F1={ppl_results['test']['macro_f1']:.4f}, "
+          f"AUROC={ppl_results['test']['auroc']:.4f}")
+
+    # ---- P2.3-P2.5: SAPLMA 方法 ---------------------------------------------
+    print("\n" + "=" * 50)
+    print("  P2.3-P2.5: SAPLMA 方法")
+    print("=" * 50)
+
+    from src.methods.saplma import run_saplma_full
+
+    saplma_results = run_saplma_full(
+        model=model, tokenizer=tokenizer,
+        train_dataset=train_ds, val_dataset=val_ds, test_dataset=test_ds,
+        layer_idx=-1, pooling="last", batch_size=8, max_length=128,
+    )
+    for clf_name, clf_result in saplma_results.items():
+        summary = {
+            "method": clf_result["method"],
+            "layer_idx": clf_result["layer_idx"],
+            "pooling": clf_result["pooling"],
+            "num_seeds": clf_result["num_seeds"],
+            "test_summary": clf_result["test_summary"],
+        }
+        fname = f"saplma_{clf_name}_results.json"
+        with open(out_dir / fname, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
+        print(f"SAPLMA ({clf_name}) 结果已保存至 {out_dir / fname}")
+        ts = clf_result["test_summary"]
+        print(f"  Accuracy:  {ts['accuracy']['mean']:.4f} ± {ts['accuracy']['std']:.4f}")
+        print(f"  Macro-F1:  {ts['macro_f1']['mean']:.4f} ± {ts['macro_f1']['std']:.4f}")
+        print(f"  AUROC:     {ts['auroc']['mean']:.4f} ± {ts['auroc']['std']:.4f}")
+
+    elapsed = time.time() - t_start
+    print(f"\n{'=' * 60}")
+    print(f"  Phase 2 全部完成! 总耗时: {elapsed:.0f}s ({elapsed/60:.1f} min)")
+    print(f"{'=' * 60}")
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -109,7 +316,10 @@ if __name__ == "__main__":
         "command",
         nargs="?",
         default="status",
-        choices=["status", "preprocess", "test-gpu"],
+        choices=[
+            "status", "preprocess", "test-gpu",
+            "phase2", "phase2-ppl", "phase2-saplma",
+        ],
         help="要执行的命令 (默认: status)",
     )
     args = parser.parse_args()
@@ -120,3 +330,9 @@ if __name__ == "__main__":
         preprocess()
     elif args.command == "test-gpu":
         test_gpu()
+    elif args.command == "phase2":
+        phase2()
+    elif args.command == "phase2-ppl":
+        phase2_ppl()
+    elif args.command == "phase2-saplma":
+        phase2_saplma()

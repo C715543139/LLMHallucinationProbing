@@ -32,6 +32,16 @@
 - **层分析约定**：层分析统一以 Transformer block 输出为统计对象，不将 embedding output 计入层号；层索引通过 `model.config.num_hidden_layers` 动态获取，不硬编码具体数值
 - **Subject token 提取**：若实验中需要定位主语实体，优先使用依存句法或 noun chunk 规则抽取句首主语短语；对于能够稳定识别的命名实体样本，可辅以 NER 工具（如 spaCy）做对齐检查。若自动解析不可靠，则退化为手工规则，并仅在报告中标注结果。Subject token 分析作为可选项，保底至少比较 First token、Last token 与 Mean pooling
 
+### 1.4 当前实现同步（截至 2026-05-15）
+
+结合当前工作区中的真实代码与目录结构，项目当前状态如下：
+
+- **Phase 1 已完成**：环境、配置、数据加载/预处理、模型加载与 Phase 1 测试均已落地
+- **Phase 2 已完成**：PPL 与 SAPLMA 两类基线方法已实现，并完成 `tests/phase2/` 自动化测试
+- **Phase 3 尚未开始实现**：`src/analysis/` 当前仅保留 `__init__.py`，层分析、token 位置分析和可视化模块仍待补齐
+- **Phase 4 尚未开始实现**：注意力特征、FFN 特征与进阶方法模块尚未在 `src/` 中落地
+- **里程碑文档已建立**：当前已新增 `docs/milestone/M1.md` 与 `docs/milestone/M2.md` 用于记录阶段成果
+
 ---
 
 ## 二、硬件与软件环境
@@ -75,95 +85,108 @@
 
 ---
 
-## 三、项目目录结构
+## 三、项目目录结构（已按当前真实工作区同步）
 
-```
+### 3.1 当前真实目录结构
+
+```text
 LLMHallucinationProbing/
-├── docs/                           # 文档
-│   ├── 利用大语言模型内部状态进行幻觉检测.md   # 任务说明
-│   ├── Proposal.md                 # 项目提案
-│   └── Project_Plan.md             # 本计划文档
-│
-├── data/                           # 数据集
-│   ├── raw/                        # 原始 True-False Dataset
-│   │   ├── cities.json
-│   │   ├── inventions.json
-│   │   ├── chemical_elements.json
-│   │   ├── animals.json
-│   │   ├── companies.json
-│   │   └── scientific_facts.json
-│   └── processed/                  # 预处理后的数据（自动生成）
+├── docs/
+│   ├── Project_Plan.md
+│   ├── Proposal.md
+│   ├── 利用大语言模型内部状态进行幻觉检测.md
+│   ├── milestone/
+│   │   ├── M1.md
+│   │   └── M2.md
+│   └── revision/
+│       └── Project_Plan_review_v*.md
+├── data/
+│   ├── raw/
+│   │   ├── animals_true_false.csv
+│   │   ├── cities_true_false.csv
+│   │   ├── companies_true_false.csv
+│   │   ├── elements_true_false.csv
+│   │   ├── facts_true_false.csv
+│   │   ├── generated_true_false.csv
+│   │   └── inventions_true_false.csv
+│   └── processed/
 │       ├── train.pt
 │       ├── val.pt
 │       └── test.pt
-│
-├── src/                            # 源代码
-│   ├── __init__.py
-│   ├── config.py                   # 全局配置（路径、模型、超参数）
-│   │
-│   ├── data/                       # 数据加载与预处理
-│   │   ├── __init__.py
-│   │   ├── dataset.py              # True-False Dataset 加载
-│   │   └── preprocessing.py        # 数据预处理与划分
-│   │
-│   ├── methods/                    # 幻觉检测方法
-│   │   ├── __init__.py
-│   │   ├── probability.py          # 3.1 基于生成概率(PPL)的方法
-│   │   ├── saplma.py               # 3.1 基于隐藏状态分类(SAPLMA)
-│   │   └── advanced.py             # 3.3 进阶方法（注意力/FFN）
-│   │
-│   ├── models/                     # 模型加载与工具
-│   │   ├── __init__.py
-│   │   └── loader.py               # 模型加载（FP16）
-│   │
-│   ├── features/                   # 特征提取
-│   │   ├── __init__.py
-│   │   ├── hidden_states.py        # 隐藏状态提取（各层/各token）
-│   │   ├── attention.py            # 注意力模式提取
-│   │   └── ffn_activations.py      # FFN 神经元激活提取
-│   │
-│   ├── analysis/                   # 分析与可视化
-│   │   ├── __init__.py
-│   │   ├── layer_analysis.py       # 3.2 不同层效果分析
-│   │   ├── token_analysis.py       # 3.2 不同token位置分析
-│   │   └── visualization.py        # 图表生成
-│   │
-│   └── utils/                      # 工具函数
+├── experiments/
+│   └── results/
+│       └── baseline/
+│           ├── phase2_run.log
+│           ├── ppl_results.json
+│           ├── saplma_logistic_results.json
+│           └── saplma_mlp_results.json
+├── models_cache/
+│   └── Qwen2-1.5B/
+│       ├── config.json
+│       ├── tokenizer.json
+│       ├── tokenizer_config.json
+│       └── model.safetensors
+├── scripts/
+│   ├── check_phase1.ps1
+│   ├── run_phase2.py
+│   └── run_phase2_simple.py
+├── src/
+│   ├── config.py
+│   ├── data/
+│   │   ├── dataset.py
+│   │   └── preprocessing.py
+│   ├── models/
+│   │   └── loader.py
+│   ├── methods/
+│   │   ├── probability.py
+│   │   └── saplma.py
+│   ├── features/
+│   │   └── hidden_states.py
+│   ├── analysis/
+│   │   └── __init__.py
+│   └── utils/
 │       ├── __init__.py
-│       ├── metrics.py              # 评估指标
-│       └── logging_utils.py        # 日志与实验管理
-│
-├── tests/                          # 测试套件（pytest）
-│   ├── conftest.py                 # 公共 Fixture（路径等会话级共享）
-│   └── phase1/                     # Phase 1 完成情况验证
-│       ├── test_config.py          # P1.8 全局配置模块
-│       ├── test_data.py            # P1.4/P1.5/P1.7 数据加载与预处理
-│       └── test_model.py           # P1.2/P1.3/P1.6/M1 模型加载与前向传播
-│
-├── scripts/                        # 运行脚本（PowerShell）
-│   ├── check_phase1.ps1            # Phase 1 端到端完成情况检验
-│   ├── run_baseline.ps1            # Windows 下运行基础方法
-│   ├── run_analysis.ps1            # Windows 下运行分析实验
-│   └── run_advanced.ps1            # Windows 下运行进阶实验
-│
-├── experiments/                    # 实验配置与结果
-│   ├── configs/                    # 各实验配置文件
-│   │   ├── baseline.yaml
-│   │   ├── layer_analysis.yaml
-│   │   └── advanced.yaml
-│   └── results/                    # 实验结果
-│       ├── baseline/
-│       ├── analysis/
-│       └── advanced/
-│
-├── models_cache/                   # 预训练模型缓存
-│   └── .gitkeep
-│
-├── pyproject.toml                  # uv 项目与依赖配置
-├── uv.lock                         # uv 依赖锁定文件
-├── .gitignore
+│       └── metrics.py
+├── tests/
+│   ├── conftest.py
+│   ├── phase1/
+│   │   ├── test_config.py
+│   │   ├── test_data.py
+│   │   └── test_model.py
+│   └── phase2/
+│       ├── conftest.py
+│       ├── test_probability.py
+│       ├── test_hidden_states.py
+│       └── test_saplma.py
+├── main.py
+├── pyproject.toml
+├── uv.lock
 └── README.md
 ```
+
+### 3.2 当前已实现模块与待实现模块
+
+#### 已实现
+
+- `src/config.py`：全局配置与路径/模型/训练超参数管理
+- `src/data/dataset.py`：原始 CSV 加载、`TrueFalseDataset`、`.pt` 序列化
+- `src/data/preprocessing.py`：分层划分与预处理流水线
+- `src/models/loader.py`：Qwen2-1.5B 加载、GPU 信息查询
+- `src/methods/probability.py`：PPL 打分、阈值调优、PPL 方法评估
+- `src/features/hidden_states.py`：最后 token 特征提取、批量/全层隐藏状态提取
+- `src/methods/saplma.py`：逻辑回归 / MLP 分类器训练、预测与完整 SAPLMA 实验
+- `src/utils/metrics.py`：Accuracy、Macro-F1、AUROC、阈值搜索等评估逻辑
+- `main.py`：状态检查、预处理、Phase 2 运行入口
+
+#### 计划中但尚未实现
+
+- `src/analysis/layer_analysis.py`
+- `src/analysis/token_analysis.py`
+- `src/analysis/visualization.py`
+- `src/features/attention.py`
+- `src/features/ffn_activations.py`
+- `src/methods/advanced.py`
+- 计划中的 `experiments/configs/*.yaml` 与 `scripts/run_analysis.ps1`、`scripts/run_advanced.ps1`
 
 ---
 
@@ -234,6 +257,8 @@ uv sync
 hf download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
 ```
 
+> **当前实现同步**：当前工作区中已存在 `models_cache/Qwen2-1.5B/`，包括 `config.json`、`tokenizer.json`、`tokenizer_config.json` 与 `model.safetensors` 等核心文件。若仅复现实验，可优先检查本地缓存是否已齐全，再决定是否重新下载。
+
 > **Windows 端注意事项**：
 >
 > - 模型缓存默认在 `C:\Users\<username>\.cache\huggingface\`，可能占用 C 盘空间
@@ -261,13 +286,25 @@ hf download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
 http://azariaa.com/Content/Datasets/true-false-dataset.zip
 ```
 
+> **当前实现同步**：当前工作区中的 `data/raw/` 已实际采用 CSV 组织形式，文件名为：
+>
+> - `animals_true_false.csv`
+> - `cities_true_false.csv`
+> - `companies_true_false.csv`
+> - `elements_true_false.csv`
+> - `facts_true_false.csv`
+> - `generated_true_false.csv`
+> - `inventions_true_false.csv`
+>
+> 其中前 6 个文件对应课程要求的主要领域数据；`generated_true_false.csv` 为当前配置中一并纳入的附加原始文件。
+
 ---
 
 ## 五、分阶段实施计划
 
 > **时间标注说明**：各 Phase 标题中括号内的"X-Y 天"表示预估有效工作量，后侧日期表示自然日时间窗口，已包含缓冲与并行协作时间。
 
-### Phase 1：环境搭建与数据准备（1-2 天）| 5.12 – 5.14
+### Phase 1：环境搭建与数据准备（1-2 天）| 5.12 – 5.14 ｜**当前状态：已完成**
 
 | 编号 | 任务                                    | 输出物                                      | 负责人建议 |
 | ---- | --------------------------------------- | ------------------------------------------- | ---------- |
@@ -283,9 +320,16 @@ http://azariaa.com/Content/Datasets/true-false-dataset.zip
 
 **里程碑 M1**: 能够在 GPU 上成功加载目标模型，并对单条陈述语句完成一次完整的前向传播，输出 hidden states。
 
+**当前同步结果**：
+
+- `src/config.py`、`src/data/dataset.py`、`src/data/preprocessing.py`、`src/models/loader.py` 已实现
+- `tests/phase1/` 与 `scripts/check_phase1.ps1` 已建立
+- `data/processed/train.pt`、`val.pt`、`test.pt` 已生成
+- `docs/milestone/M1.md` 已记录 Phase 1 实际完成情况
+
 ---
 
-### Phase 2：基础方法实现（3-4 天）| 5.15 – 5.21
+### Phase 2：基础方法实现（3-4 天）| 5.15 – 5.21 ｜**当前状态：已完成**
 
 | 编号 | 任务                                                      | 输出物                          | 负责人建议 |
 | ---- | --------------------------------------------------------- | ------------------------------- | ---------- |
@@ -346,9 +390,22 @@ def extract_last_token_hidden(model, tokenizer, statement, layer_idx=-1):
 
 **里程碑 M2**: 完成 PPL 与 SAPLMA 两类基线方法的实现、验证和对比；在验证集上调优后，以测试集结果作为最终汇报，输出 Accuracy、Macro-F1 与 AUROC。
 
+**当前同步结果**：
+
+- `src/methods/probability.py` 已实现 PPL 打分、阈值调优与完整评估流水线
+- `src/features/hidden_states.py` 已实现最后 token 特征提取、批量提取与全层提取接口
+- `src/methods/saplma.py` 已实现 LR / MLP 分类器训练、预测与多随机种子 SAPLMA 实验
+- `main.py` 已提供 `phase2`、`phase2-ppl`、`phase2-saplma` 运行入口
+- `experiments/results/baseline/` 已存在 Phase 2 结果文件：
+  - `ppl_results.json`
+  - `saplma_logistic_results.json`
+  - `saplma_mlp_results.json`
+- `tests/phase2/` 已建立并通过真实代码验证
+- `docs/milestone/M2.md` 已记录 Phase 2 实际完成情况
+
 ---
 
-### Phase 3：分析实验（3-4 天）| 5.22 – 5.28
+### Phase 3：分析实验（3-4 天）| 5.22 – 5.28 ｜**当前状态：待实现**
 
 | 编号 | 任务                                                     | 输出物                                                     | 负责人建议 |
 | ---- | -------------------------------------------------------- | ---------------------------------------------------------- | ---------- |
@@ -394,7 +451,7 @@ def extract_last_token_hidden(model, tokenizer, statement, layer_idx=-1):
 
 ---
 
-### Phase 4：进阶方法探索（5-6 天）| 5.29 – 6.4
+### Phase 4：进阶方法探索（5-6 天）| 5.29 – 6.4 ｜**当前状态：待实现**
 
 从以下方向中选择 1-2 个深入研究：
 
@@ -470,7 +527,7 @@ ffn_features = {
 
 ---
 
-### Phase 5：报告撰写与答辩准备（5-6 天）| 6.5 – 6.11
+### Phase 5：报告撰写与答辩准备（5-6 天）| 6.5 – 6.11 ｜**当前状态：待实现**
 
 | 编号 | 任务                          | 输出物       |
 | ---- | ----------------------------- | ------------ |

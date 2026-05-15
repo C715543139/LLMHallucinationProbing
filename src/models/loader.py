@@ -13,7 +13,8 @@ import logging
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
 
-import torch
+# 注意: transformers 必须在 torch 之前导入，
+# 否则在 Windows + CUDA 12.4 环境下可能触发 ACCESS VIOLATION。
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -21,6 +22,7 @@ from transformers import (
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
 )
+import torch
 
 from src.config import config
 

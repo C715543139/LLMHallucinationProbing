@@ -1,0 +1,20 @@
+{
+  "method": "SAPLMA (logistic)",
+  "layer_idx": 27,
+  "pooling": "last",
+  "num_seeds": 3,
+  "test_summary": {
+    "accuracy": {
+      "mean": 0.7416798732171156,
+      "std": 1.3597399555105182e-16
+    },
+    "macro_f1": {
+      "mean": 0.7416772780586552,
+      "std": 0.0
+    },
+    "auroc": {
+      "mean": 0.8277542245172698,
+      "std": 0.0
+    }
+  }
+}

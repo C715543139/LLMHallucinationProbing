@@ -9,16 +9,24 @@ from __future__ import annotations
 
 import torch
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Union
+from typing import TYPE_CHECKING
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
+
+
+def _require_pandas():
+    """按需导入 pandas，避免仅导入模块时触发原生依赖初始化。"""
+    import pandas as pd
+
+    return pd
 
 
 # ---------------------------------------------------------------------------
 # 工具函数
 # ---------------------------------------------------------------------------
 
-def _read_single_csv(filepath: Path) -> pd.DataFrame:
+def _read_single_csv(filepath: Path) -> "pd.DataFrame":
     """读取单个 CSV 文件并添加来源域名字段。
 
     参数:
@@ -27,6 +35,7 @@ def _read_single_csv(filepath: Path) -> pd.DataFrame:
     返回:
         DataFrame，包含 statement, label, domain 三列。
     """
+    pd = _require_pandas()
     df = pd.read_csv(filepath)
     # 标准化列名（兼容大小写和空格）
     df.columns = df.columns.str.strip().str.lower()
@@ -44,7 +53,7 @@ def _read_single_csv(filepath: Path) -> pd.DataFrame:
     return df[["statement", "label", "domain"]]
 
 
-def load_all_raw_data(raw_dir: Path) -> pd.DataFrame:
+def load_all_raw_data(raw_dir: Path) -> "pd.DataFrame":
     """加载 raw/ 目录下全部 True-False CSV 文件并合并为单个 DataFrame。
 
     参数:
@@ -53,6 +62,7 @@ def load_all_raw_data(raw_dir: Path) -> pd.DataFrame:
     返回:
         合并后的 DataFrame，包含 statement, label, domain 三列。
     """
+    pd = _require_pandas()
     csv_files = sorted(raw_dir.glob("*_true_false.csv"))
     if not csv_files:
         raise FileNotFoundError(f"在 {raw_dir} 中未找到任何 *_true_false.csv 文件")
@@ -89,9 +99,9 @@ class TrueFalseDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        statements: List[str],
-        labels: List[int],
-        domains: Optional[List[str]] = None,
+        statements: list[str],
+        labels: list[int],
+        domains=None,
     ) -> None:
         if len(statements) != len(labels):
             raise ValueError(
@@ -107,7 +117,7 @@ class TrueFalseDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self._statements)
 
-    def __getitem__(self, idx: int) -> Dict[str, Union[str, int]]:
+    def __getitem__(self, idx: int) -> dict[str, str | int]:
         return {
             "statement": self._statements[idx],
             "label": self._labels[idx],
@@ -117,15 +127,15 @@ class TrueFalseDataset(torch.utils.data.Dataset):
     # ---- 属性 --------------------------------------------------------------
 
     @property
-    def statements(self) -> List[str]:
+    def statements(self) -> list[str]:
         return self._statements
 
     @property
-    def labels(self) -> List[int]:
+    def labels(self) -> list[int]:
         return self._labels
 
     @property
-    def domains(self) -> List[str]:
+    def domains(self) -> list[str]:
         return self._domains
 
     @property
