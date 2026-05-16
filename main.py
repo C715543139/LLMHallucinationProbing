@@ -8,10 +8,13 @@ LLM Hallucination Probing — 主入口。
     python -s main.py phase2           # 运行 Phase 2 全部实验
     python -s main.py phase2-ppl       # 仅运行 PPL 方法
     python -s main.py phase2-saplma    # 仅运行 SAPLMA 方法
+    python -s main.py phase3           # 运行 Phase 3 层分析 + token 分析
+    python -s main.py phase4           # 运行 Phase 4 注意力方法
+    python -s main.py phase4-attention # 仅运行 Phase 4 注意力方法
 
 注意: 运行前必须依次激活环境:
     conda activate llm_hallucination
-    .\.venv\Scripts\activate.ps1
+    .\\.venv\\Scripts\\activate.ps1
 """
 
 from __future__ import annotations
@@ -31,22 +34,24 @@ def status() -> None:
 
     # PyTorch / CUDA
     try:
-        import torch
-        print(f"PyTorch: {torch.__version__}")
-        print(f"CUDA available: {torch.cuda.is_available()}")
-        if torch.cuda.is_available():
-            print(f"GPU: {torch.cuda.get_device_name(0)}")
-            mem_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            print(f"VRAM: {mem_total:.1f} GB")
+        import torch as torch_mod
     except ImportError:
         print("PyTorch: NOT INSTALLED")
+    else:
+        print(f"PyTorch: {torch_mod.__version__}")
+        print(f"CUDA available: {torch_mod.cuda.is_available()}")
+        if torch_mod.cuda.is_available():
+            print(f"GPU: {torch_mod.cuda.get_device_name(0)}")
+            mem_total = torch_mod.cuda.get_device_properties(0).total_memory / 1024**3
+            print(f"VRAM: {mem_total:.1f} GB")
 
     # Transformers
     try:
-        import transformers
-        print(f"Transformers: {transformers.__version__}")
+        import transformers as transformers_mod
     except ImportError:
         print("Transformers: NOT INSTALLED")
+    else:
+        print(f"Transformers: {transformers_mod.__version__}")
 
     # 数据
     processed_dir = Path("data/processed")
@@ -441,6 +446,85 @@ def phase3() -> None:
     print(f"{'=' * 60}")
 
 
+# ===========================================================================
+# Phase 4 实验
+# ===========================================================================
+
+def phase4_attention() -> None:
+    """Phase 4: 基于注意力模式的增强幻觉检测。"""
+    model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
+
+    from src.analysis.visualization import (
+        plot_attention_feature_deltas,
+        plot_attention_variant_comparison,
+    )
+    from src.config import config
+    from src.methods.advanced import run_attention_ablation_study
+    from src.utils.reproducibility import collect_runtime_info
+    import json
+
+    hidden_layer_idx = min(17, model.config.num_hidden_layers - 1)
+    results = run_attention_ablation_study(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_ds,
+        val_dataset=val_ds,
+        test_dataset=test_ds,
+        classifier_type="logistic",
+        hidden_layer_idx=hidden_layer_idx,
+        hidden_pooling="last",
+        batch_size=4,
+        max_length=128,
+    )
+
+    out_dir = config.paths.results_dir / "advanced"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    summary = {
+        **results,
+        "runtime": collect_runtime_info(model),
+    }
+    out_path = out_dir / f"attention_ablation_logistic_layer{hidden_layer_idx}_last.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
+
+    plot_attention_variant_comparison(
+        results,
+        split="test",
+        metric="accuracy",
+        save_path=out_dir / "attention_ablation_accuracy.png",
+    )
+    plot_attention_feature_deltas(
+        results["attention_feature_summary"]["test"],
+        top_k=8,
+        save_path=out_dir / "attention_feature_deltas.png",
+    )
+
+    print(f"\nPhase 4 注意力方法结果已保存至 {out_path}")
+    print(f"最佳变体: {results['best_variant']['name']}")
+    print(
+        f"测试集 Accuracy: {results['best_variant']['test_summary']['accuracy']['mean']:.4f} ± "
+        f"{results['best_variant']['test_summary']['accuracy']['std']:.4f}"
+    )
+
+
+def phase4() -> None:
+    """Phase 4: 运行当前已实现的注意力增强实验。"""
+    import time
+
+    t_start = time.time()
+    print("=" * 60)
+    print("  Phase 4: 基于注意力模式的幻觉检测")
+    print("=" * 60)
+
+    phase4_attention()
+
+    elapsed = time.time() - t_start
+    print(f"\n{'=' * 60}")
+    print(f"  Phase 4 完成! 总耗时: {elapsed:.0f}s ({elapsed/60:.1f} min)")
+    print(f"{'=' * 60}")
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -453,6 +537,7 @@ if __name__ == "__main__":
             "status", "preprocess", "test-gpu",
             "phase2", "phase2-ppl", "phase2-saplma",
             "phase3", "phase3-layer", "phase3-token",
+            "phase4", "phase4-attention",
         ],
         help="要执行的命令 (默认: status)",
     )
@@ -476,3 +561,7 @@ if __name__ == "__main__":
         phase3_layer()
     elif args.command == "phase3-token":
         phase3_token()
+    elif args.command == "phase4":
+        phase4()
+    elif args.command == "phase4-attention":
+        phase4_attention()

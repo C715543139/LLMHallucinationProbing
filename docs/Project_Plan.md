@@ -43,7 +43,8 @@
 - **Phase 2 复现性修正已完成**：当前代码已显式固定 float16、随机种子与确定性运行选项，并支持在结果摘要中记录 seeds / runtime 等关键信息
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
-- **Phase 4 尚未开始实现**：注意力特征、FFN 特征与进阶方法模块尚未在 `src/` 中落地；后续实验默认可沿用 Phase 3 已验证的复现协议，并优先参考 `layer 17 + last` 的观察结果
+- **Phase 4 已完成方向 A（注意力模式）**：`src/features/attention.py` 与 `src/methods/advanced.py` 已落地，已实现 attention-only / hidden-only / hidden+attention 三组消融，并生成 `experiments/results/advanced/attention_ablation_logistic_layer17_last.json`、`attention_ablation_accuracy.png` 与 `attention_feature_deltas.png`
+- **Phase 4 当前观察结果已明确**：注意力特征单独使用时接近随机；以 `layer 17 + last` 隐藏状态为基线加入注意力特征后，测试集 Accuracy 从 0.8003 提升到 0.8067，Macro-F1 从 0.8001 提升到 0.8066，而 AUROC 基本持平（0.8879 vs 0.8878）
 - **里程碑文档已整合**：M1 与 M2 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
 
 ---
@@ -117,6 +118,10 @@ LLMHallucinationProbing/
 │       └── test.pt
 ├── experiments/
 │   └── results/
+│       ├── advanced/
+│       │   ├── attention_ablation_accuracy.png
+│       │   ├── attention_ablation_logistic_layer17_last.json
+│       │   └── attention_feature_deltas.png
 │       ├── analysis/
 │       │   ├── layer_accuracy_curve.png
 │       │   ├── layer_analysis_logistic_last.json
@@ -147,9 +152,11 @@ LLMHallucinationProbing/
 │   │   └── loader.py
 │   ├── methods/
 │   │   ├── probability.py
-│   │   └── saplma.py
+│   │   ├── saplma.py
+│   │   └── advanced.py
 │   ├── features/
-│   │   └── hidden_states.py
+│   │   ├── hidden_states.py
+│   │   └── attention.py
 │   ├── analysis/
 │   │   ├── __init__.py
 │   │   ├── layer_analysis.py
@@ -166,16 +173,22 @@ LLMHallucinationProbing/
 │   │   ├── test_data.py
 │   │   └── test_model.py
 │   ├── phase2/
-│       ├── conftest.py
-│       ├── test_probability.py
-│       ├── test_hidden_states.py
-│       └── test_saplma.py
-│   └── phase3/
-│       ├── __init__.py
-│       ├── conftest.py
-│       ├── test_layer_analysis.py
-│       ├── test_token_analysis.py
-│       └── test_visualization.py
+│   │   ├── conftest.py
+│   │   ├── test_probability.py
+│   │   ├── test_hidden_states.py
+│   │   └── test_saplma.py
+│   ├── phase3/
+│   │   ├── __init__.py
+│   │   ├── conftest.py
+│   │   ├── test_layer_analysis.py
+│   │   ├── test_token_analysis.py
+│   │   └── test_visualization.py
+│   ├── phase4/
+│   │   ├── __init__.py
+│   │   ├── conftest.py
+│   │   ├── test_advanced.py
+│   │   ├── test_attention.py
+│   │   └── test_visualization.py
 ├── main.py
 ├── pyproject.toml
 ├── uv.lock
@@ -193,18 +206,18 @@ LLMHallucinationProbing/
 - `src/methods/probability.py`：PPL 打分、阈值调优、PPL 方法评估
 - `src/features/hidden_states.py`：最后 token 特征提取、批量/全层隐藏状态提取
 - `src/methods/saplma.py`：逻辑回归 / MLP 分类器训练、预测与完整 SAPLMA 实验
+- `src/features/attention.py`：注意力矩阵提取、subject / relation / tail 锚点识别与统计特征构造
+- `src/methods/advanced.py`：attention-only、hidden-only 与 hidden+attention 融合实验
 - `src/analysis/layer_analysis.py`：逐层隐藏状态分析与层性能曲线提取
 - `src/analysis/token_analysis.py`：不同 token pooling 策略分析
-- `src/analysis/visualization.py`：层曲线、token 对比图和方法对比图生成
+- `src/analysis/visualization.py`：层曲线、token 对比图、方法对比图与 Phase 4 注意力消融图生成
 - `src/utils/metrics.py`：Accuracy、Macro-F1、AUROC、阈值搜索等评估逻辑
 - `src/utils/reproducibility.py`：随机种子、确定性运行与环境信息记录
-- `main.py`：状态检查、预处理、Phase 2 / Phase 3 运行入口
+- `main.py`：状态检查、预处理、Phase 2 / Phase 3 / Phase 4 运行入口
 
 #### 计划中但尚未实现
 
-- `src/features/attention.py`
 - `src/features/ffn_activations.py`
-- `src/methods/advanced.py`
 - 计划中的 `experiments/configs/*.yaml` 与 `scripts/run_analysis.ps1`、`scripts/run_advanced.ps1`
 
 ---
@@ -678,7 +691,7 @@ LLMHallucinationProbing/
 
 ---
 
-### Phase 4：进阶方法探索（5-6 天）| 5.29 – 6.4 ｜**当前状态：待实现**
+### Phase 4：进阶方法探索（5-6 天）| 5.29 – 6.4 ｜**当前状态：已完成方向 A（注意力模式）**
 
 从以下方向中选择 1-2 个深入研究：
 
@@ -751,6 +764,35 @@ ffn_features = {
 | 最佳组合      | 多特征融合                           | vs 单一方法 |
 
 **里程碑 M4**: 至少完成一种进阶特征的实现与对比实验（注意力或 FFN）；若性能未超过基线，也需分析失败原因、适用条件和观察到的内部模式差异。
+
+**当前同步结果**：
+
+- `src/features/attention.py` 已实现注意力矩阵读取、基于规则的 `subject / relation / tail` 锚点定位、offset mapping 对齐以及 20 维注意力统计特征构造
+- `src/methods/advanced.py` 已实现 `attention_only`、`hidden_only` 与 `hidden_plus_attention` 三类变体，并支持多随机种子评估与特征差异汇总
+- `src/analysis/visualization.py` 已补充 Phase 4 图表接口，可生成注意力消融对比图与注意力特征差异图
+- `main.py` 已提供 `phase4` 与 `phase4-attention` 命令入口
+- `tests/phase4/` 已建立，并完成轻量单元测试与小规模真实模型集成测试
+- `experiments/results/advanced/attention_ablation_logistic_layer17_last.json` 已保存正式结果；对应图像 `attention_ablation_accuracy.png` 与 `attention_feature_deltas.png` 已生成
+
+#### M4 阶段性结果（方向 A）
+
+当前 Phase 4 默认沿用 Phase 3 的最优隐藏状态基线 `layer 17 + last + logistic`，并在其上比较三种设置：
+
+| 变体 | 特征维度 | Test Accuracy | Test Macro-F1 | Test AUROC |
+| ---- | -------- | ------------- | ------------- | ---------- |
+| attention_only | 20 | 0.4976 | 0.4974 | 0.5031 |
+| hidden_only | 1536 | 0.8003 | 0.8001 | 0.8879 |
+| hidden_plus_attention | 1556 | **0.8067** | **0.8066** | 0.8878 |
+
+以验证集 Accuracy 作为模型选择标准时，最佳变体为 **hidden_plus_attention**。这说明：
+
+1. 仅使用当前构造的注意力统计特征几乎无法独立完成真假判别；
+2. 注意力特征在与隐藏状态融合后，能够带来小幅但稳定的 Accuracy / Macro-F1 提升；
+3. AUROC 与 hidden-only 基线几乎持平，说明当前注意力特征更多改善的是固定决策边界附近的分类效果，而不是整体排序能力。
+
+进一步地，从结果文件中的注意力特征差异摘要可以看到，当前真 / 假样本差异最大的条目主要包括 `sequence_length`、`subject_attn_ratio`、`subject_attn_last_layer`、`attn_entropy_mean` 与 `cross_head_agreement_mean`。其中 `sequence_length` 的差异幅度最大，也提示后续仍需继续削弱表面统计特征对注意力实验的干扰。
+
+**结论**：Phase 4 已达到“至少完成一种进阶特征并与基线对比”的课程要求；方向 A 已完成实现、测试和结果归档，可直接写入正式报告。
 
 ---
 
