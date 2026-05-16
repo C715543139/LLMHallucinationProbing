@@ -321,6 +321,126 @@ def phase2() -> None:
     print(f"{'=' * 60}")
 
 
+# ===========================================================================
+# Phase 3 实验
+# ===========================================================================
+
+def phase3_layer() -> None:
+    """Phase 3: 逐层分析隐藏状态的检测性能。"""
+    model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
+
+    from src.analysis.layer_analysis import analyze_layer_performance
+    from src.analysis.visualization import plot_layer_metric_curve
+    from src.config import config
+    from src.utils.reproducibility import collect_runtime_info
+    import json
+
+    results = analyze_layer_performance(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_ds,
+        val_dataset=val_ds,
+        test_dataset=test_ds,
+        classifier_type="logistic",
+        pooling="last",
+        layers=None,
+        batch_size=8,
+        max_length=128,
+    )
+
+    out_dir = config.paths.results_dir / "analysis"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    summary = {
+        **results,
+        "runtime": collect_runtime_info(model),
+    }
+    out_path = out_dir / "layer_analysis_logistic_last.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
+
+    plot_layer_metric_curve(
+        results,
+        split="test",
+        metric="accuracy",
+        save_path=out_dir / "layer_accuracy_curve.png",
+    )
+
+    print(f"\nLayer analysis 结果已保存至 {out_path}")
+    print(f"最佳层: {results['best_layer']['layer_idx']}")
+    print(
+        f"测试集 Accuracy: {results['best_layer']['test_summary']['accuracy']['mean']:.4f} ± "
+        f"{results['best_layer']['test_summary']['accuracy']['std']:.4f}"
+    )
+
+
+def phase3_token() -> None:
+    """Phase 3: 分析不同 token pooling 的检测性能。"""
+    model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
+
+    from src.analysis.token_analysis import analyze_token_pooling
+    from src.analysis.visualization import plot_token_metric_comparison
+    from src.config import config
+    from src.utils.reproducibility import collect_runtime_info
+    import json
+
+    results = analyze_token_pooling(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_ds,
+        val_dataset=val_ds,
+        test_dataset=test_ds,
+        classifier_type="logistic",
+        layer_idx=-1,
+        poolings=("last", "first", "mean"),
+        batch_size=8,
+        max_length=128,
+    )
+
+    out_dir = config.paths.results_dir / "analysis"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    summary = {
+        **results,
+        "runtime": collect_runtime_info(model),
+    }
+    out_path = out_dir / "token_analysis_logistic_last_layer.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
+
+    plot_token_metric_comparison(
+        results,
+        split="test",
+        metric="accuracy",
+        save_path=out_dir / "token_accuracy_comparison.png",
+    )
+
+    print(f"\nToken analysis 结果已保存至 {out_path}")
+    print(f"最佳 pooling: {results['best_pooling']['pooling']}")
+    print(
+        f"测试集 Accuracy: {results['best_pooling']['test_summary']['accuracy']['mean']:.4f} ± "
+        f"{results['best_pooling']['test_summary']['accuracy']['std']:.4f}"
+    )
+
+
+def phase3() -> None:
+    """Phase 3: 运行层分析与 token pooling 分析。"""
+    import time
+
+    t_start = time.time()
+    print("=" * 60)
+    print("  Phase 3: 分析实验")
+    print("=" * 60)
+
+    phase3_layer()
+    phase3_token()
+
+    elapsed = time.time() - t_start
+    print(f"\n{'=' * 60}")
+    print(f"  Phase 3 全部完成! 总耗时: {elapsed:.0f}s ({elapsed/60:.1f} min)")
+    print(f"{'=' * 60}")
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -332,6 +452,7 @@ if __name__ == "__main__":
         choices=[
             "status", "preprocess", "test-gpu",
             "phase2", "phase2-ppl", "phase2-saplma",
+            "phase3", "phase3-layer", "phase3-token",
         ],
         help="要执行的命令 (默认: status)",
     )
@@ -349,3 +470,9 @@ if __name__ == "__main__":
         phase2_ppl()
     elif args.command == "phase2-saplma":
         phase2_saplma()
+    elif args.command == "phase3":
+        phase3()
+    elif args.command == "phase3-layer":
+        phase3_layer()
+    elif args.command == "phase3-token":
+        phase3_token()

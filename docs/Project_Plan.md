@@ -42,8 +42,8 @@
 - **Phase 2 已完成**：PPL 与 SAPLMA 两类基线方法已实现，并完成 `tests/phase2/` 自动化测试
 - **Phase 2 复现性修正已完成**：当前代码已显式固定 float16、随机种子与确定性运行选项，并支持在结果摘要中记录 seeds / runtime 等关键信息
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
-- **Phase 3 尚未开始实现**：`src/analysis/` 当前仅保留 `__init__.py`，层分析、token 位置分析和可视化模块仍待补齐
-- **Phase 4 尚未开始实现**：注意力特征、FFN 特征与进阶方法模块尚未在 `src/` 中落地
+- **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
+- **Phase 4 尚未开始实现**：注意力特征、FFN 特征与进阶方法模块尚未在 `src/` 中落地；后续实验默认可沿用 Phase 3 已验证的复现协议，并优先参考 `layer 17 + last` 的观察结果
 - **里程碑文档已整合**：M1 与 M2 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
 
 ---
@@ -117,6 +117,11 @@ LLMHallucinationProbing/
 │       └── test.pt
 ├── experiments/
 │   └── results/
+│       ├── analysis/
+│       │   ├── layer_accuracy_curve.png
+│       │   ├── layer_analysis_logistic_last.json
+│       │   ├── token_accuracy_comparison.png
+│       │   └── token_analysis_logistic_last_layer.json
 │       └── baseline/
 │           ├── phase2_run.log
 │           ├── ppl_results.json
@@ -146,7 +151,10 @@ LLMHallucinationProbing/
 │   ├── features/
 │   │   └── hidden_states.py
 │   ├── analysis/
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   ├── layer_analysis.py
+│   │   ├── token_analysis.py
+│   │   └── visualization.py
 │   └── utils/
 │       ├── __init__.py
 │       ├── metrics.py
@@ -157,11 +165,17 @@ LLMHallucinationProbing/
 │   │   ├── test_config.py
 │   │   ├── test_data.py
 │   │   └── test_model.py
-│   └── phase2/
+│   ├── phase2/
 │       ├── conftest.py
 │       ├── test_probability.py
 │       ├── test_hidden_states.py
 │       └── test_saplma.py
+│   └── phase3/
+│       ├── __init__.py
+│       ├── conftest.py
+│       ├── test_layer_analysis.py
+│       ├── test_token_analysis.py
+│       └── test_visualization.py
 ├── main.py
 ├── pyproject.toml
 ├── uv.lock
@@ -179,15 +193,15 @@ LLMHallucinationProbing/
 - `src/methods/probability.py`：PPL 打分、阈值调优、PPL 方法评估
 - `src/features/hidden_states.py`：最后 token 特征提取、批量/全层隐藏状态提取
 - `src/methods/saplma.py`：逻辑回归 / MLP 分类器训练、预测与完整 SAPLMA 实验
+- `src/analysis/layer_analysis.py`：逐层隐藏状态分析与层性能曲线提取
+- `src/analysis/token_analysis.py`：不同 token pooling 策略分析
+- `src/analysis/visualization.py`：层曲线、token 对比图和方法对比图生成
 - `src/utils/metrics.py`：Accuracy、Macro-F1、AUROC、阈值搜索等评估逻辑
 - `src/utils/reproducibility.py`：随机种子、确定性运行与环境信息记录
-- `main.py`：状态检查、预处理、Phase 2 运行入口
+- `main.py`：状态检查、预处理、Phase 2 / Phase 3 运行入口
 
 #### 计划中但尚未实现
 
-- `src/analysis/layer_analysis.py`
-- `src/analysis/token_analysis.py`
-- `src/analysis/visualization.py`
 - `src/features/attention.py`
 - `src/features/ffn_activations.py`
 - `src/methods/advanced.py`
@@ -602,11 +616,11 @@ LLMHallucinationProbing/
 - 隐藏状态提取、训练、预测、评估链路已打通
 - Phase 2 自动化测试与边界测试已建立并通过
 
-**结论**：项目已经完成 Phase 2 所要求的两类基础方法实现与最小验证，可继续进入 Phase 3 的层分析与 token 位置分析阶段。
+**结论**：Phase 2 已为后续分析任务提供稳定基线，并已实际支撑当前工作区中完成的 Phase 3 层分析与 token 位置分析实验。
 
 ---
 
-### Phase 3：分析实验（3-4 天）| 5.22 – 5.28 ｜**当前状态：待实现**
+### Phase 3：分析实验（3-4 天）| 5.22 – 5.28 ｜**当前状态：已完成收尾**
 
 | 编号 | 任务                                                     | 输出物                                                     | 负责人建议 |
 | ---- | -------------------------------------------------------- | ---------------------------------------------------------- | ---------- |
@@ -624,7 +638,7 @@ LLMHallucinationProbing/
 - 遍历模型全部 Transformer 层（从第 1 个 Transformer block 到最后一层），逐层提取隐藏状态
 - 每层分别训练逻辑回归分类器
 - 绘制 "层深度 vs. 分类准确率" 曲线
-- 预期发现：中层编码了最多的真实性信息，浅层与深层相对较弱
+- 当前观察：中后层编码了最强的真实性信息，浅层接近随机水平，最后层相对中后层存在回落
 - 层分析统一以 Transformer block 输出为统计对象，不将 embedding output 计入层号
 
 #### P3.3 Token 位置分析
@@ -640,15 +654,27 @@ LLMHallucinationProbing/
 
 #### P3.4 方法对比分析维度
 
-| 对比维度   | PPL 方法                  | SAPLMA 方法              |
-| ---------- | ------------------------- | ------------------------ |
-| 检测准确率 | ?                         | ?                        |
-| 受句长影响 | 较大（长句 PPL 天然偏高） | 较小                     |
-| 受词频影响 | 较大                      | 较小                     |
-| 计算开销   | 低                        | 中（需存储隐藏状态）     |
-| 可解释性   | 低                        | 中（可分析哪些层贡献大） |
+| 对比维度   | PPL 方法                  | SAPLMA 方法                         |
+| ---------- | ------------------------- | ----------------------------------- |
+| 检测准确率 | Test Accuracy = 0.5293    | 最优观测配置 Test Accuracy = 0.7987 |
+| 受句长影响 | 较大（长句 PPL 天然偏高） | 较小                                |
+| 受词频影响 | 较大                      | 较小                                |
+| 计算开销   | 低                        | 中（需存储隐藏状态）                |
+| 可解释性   | 低                        | 中到高（可分析层与 token 位置贡献） |
 
 **里程碑 M3**: 完成层深度和 token 位置的分析，明确最佳特征提取策略，为进阶实验提供方向。
+
+**当前同步结果**：
+
+- `src/analysis/layer_analysis.py`、`src/analysis/token_analysis.py` 与 `src/analysis/visualization.py` 已实现
+- `main.py` 已提供 `phase3`、`phase3-layer` 与 `phase3-token` 运行入口
+- `tests/phase3/` 已建立，对层分析、token 分析、可视化接口和小规模真实模型路径进行验收
+- `experiments/results/analysis/` 已生成 `layer_analysis_logistic_last.json`、`token_analysis_logistic_last_layer.json`、`layer_accuracy_curve.png` 与 `token_accuracy_comparison.png`
+- 当前已观察到的最佳层为 `layer 17`，在 `last` token + logistic 配置下测试集 Accuracy 为 0.7987、Macro-F1 为 0.7986、AUROC 为 0.8878
+- 在最后层固定设置下，`last pooling` 的测试集 Accuracy 为 0.7433，高于 `mean pooling` 的 0.7021 与 `first pooling` 的 0.3867
+- `docs/Report.md` 已同步写入 Phase 3 结果、讨论与结论，Phase 3 可视为已完成收尾
+
+**结论**：Phase 3 已达到计划中的分析与收尾目标，可以正式作为 Phase 4 的起点。
 
 ---
 
