@@ -54,7 +54,7 @@ class ModelConfig:
     # 主实验模型（保底路径）
     primary_name: str = "Qwen/Qwen2-1.5B"
     primary_local: str = "models_cache/Qwen2-1.5B"
-    primary_dtype: str = "auto"            # FP16 / BF16，由模型 config 决定
+    primary_dtype: str = "float16"         # 显式固定精度，避免跨设备 auto 漂移
     primary_device_map: str = "auto"
 
     # 通用
@@ -100,7 +100,10 @@ class TrainingConfig:
     mlp_max_iter: int = 500
 
     # 通用
+    global_seed: int = 42
     random_seeds: Tuple[int, ...] = (42, 123, 2024)
+    deterministic: bool = True
+    deterministic_warn_only: bool = True
     n_jobs: int = -1
 
 

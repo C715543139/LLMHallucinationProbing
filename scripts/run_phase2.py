@@ -51,18 +51,21 @@ def main():
 
     # ---- 加载模型和数据 -------------------------------------------------
     from src.models.loader import load_model, print_device_info
+    from src.config import config
     from src.data.preprocessing import load_processed_data
+    from src.utils.reproducibility import collect_runtime_info
 
     print_device_info()
     sys.stdout.flush()
 
-    logger.info("加载模型 (Qwen2-1.5B FP16)...")
+    logger.info("加载模型 (Qwen2-1.5B %s)...", config.models.primary_dtype)
     model, tokenizer = load_model()
     logger.info("模型设备: %s", next(model.parameters()).device)
 
     logger.info("加载预处理数据...")
     train_ds, val_ds, test_ds = load_processed_data()
     logger.info(train_ds.summary())
+    runtime_info = collect_runtime_info(model)
 
     # ---- P2.1-P2.2: PPL 方法 -------------------------------------------
     if run_ppl:
@@ -78,7 +81,8 @@ def main():
             batch_size=8, max_length=128, threshold_metric="f1",
         )
         ppl_summary = {k: v for k, v in ppl_results.items()
-                       if k in ("method", "threshold", "train", "val", "test")}
+                       if k in ("method", "threshold", "threshold_metric", "train", "val", "test")}
+        ppl_summary["runtime"] = runtime_info
         with open(log_dir / "ppl_results.json", "w", encoding="utf-8") as f:
             json.dump(ppl_summary, f, indent=2, ensure_ascii=False, default=float)
         logger.info("PPL 结果已保存至 %s", log_dir / "ppl_results.json")
@@ -106,7 +110,9 @@ def main():
                 "layer_idx": clf_result["layer_idx"],
                 "pooling": clf_result["pooling"],
                 "num_seeds": clf_result["num_seeds"],
+                "seeds": clf_result.get("seeds", []),
                 "test_summary": clf_result["test_summary"],
+                "runtime": runtime_info,
             }
             fname = f"saplma_{clf_name}_results.json"
             with open(log_dir / fname, "w", encoding="utf-8") as f:

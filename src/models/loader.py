@@ -2,7 +2,7 @@
 模型加载模块。
 
 支持:
-    - Qwen2-1.5B FP16（通过 device_map="auto" 加载）
+    - Qwen2-1.5B float16（默认通过 device_map="auto" 加载）
 
 同时提供便捷的 GPU 检测与显存查询工具。
 """
@@ -25,6 +25,7 @@ from transformers import (
 import torch
 
 from src.config import config
+from src.utils.reproducibility import configure_deterministic_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def load_model_fp16(
     torch_dtype: Optional[str] = None,
     trust_remote_code: Optional[bool] = None,
 ) -> ModelAndTokenizer:
-    """以 FP16（或 auto）精度加载因果语言模型及其分词器。
+    """以显式精度加载因果语言模型及其分词器。
 
     这是主实验路径（Qwen2-1.5B），也适用于其他 HF 兼容的 CausalLM 模型。
 
@@ -119,20 +120,26 @@ def load_model_fp16(
     if trust_remote_code is None:
         trust_remote_code = config.models.trust_remote_code
 
-    logger.info("加载模型 (FP16/auto): %s", model_path)
+    configure_deterministic_runtime(
+        seed=config.training.global_seed,
+        deterministic=config.training.deterministic,
+        warn_only=config.training.deterministic_warn_only,
+    )
+
+    logger.info("加载模型 (%s): %s", torch_dtype, model_path)
     logger.info("  device_map=%s, torch_dtype=%s", device_map, torch_dtype)
 
-    # 确定 torch_dtype 参数
+    # 确定 dtype 参数
     dtype_kwargs: Dict[str, Any] = {}
     if torch_dtype == "auto":
         # 让 transformers 从 config.json 中读取
         pass
     elif torch_dtype == "float16":
-        dtype_kwargs["torch_dtype"] = torch.float16
+        dtype_kwargs["dtype"] = torch.float16
     elif torch_dtype == "bfloat16":
-        dtype_kwargs["torch_dtype"] = torch.bfloat16
+        dtype_kwargs["dtype"] = torch.bfloat16
     elif torch_dtype == "float32":
-        dtype_kwargs["torch_dtype"] = torch.float32
+        dtype_kwargs["dtype"] = torch.float32
 
     # 加载分词器
     tokenizer = AutoTokenizer.from_pretrained(
@@ -167,7 +174,7 @@ def load_model(
 ) -> ModelAndTokenizer:
     """统一模型加载入口。
 
-    使用 FP16/auto 精度加载 Qwen2-1.5B 模型。
+    使用 config 中定义的显式精度加载 Qwen2-1.5B 模型。
 
     参数:
         model_path: 覆盖默认模型路径。

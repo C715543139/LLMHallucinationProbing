@@ -23,6 +23,7 @@ from sklearn.preprocessing import StandardScaler
 
 from src.config import config
 from src.features.hidden_states import extract_hidden_states_dataset
+from src.utils.reproducibility import set_global_seed
 from src.utils.metrics import (
     compute_metrics,
     compute_metrics_multi_seed,
@@ -75,6 +76,8 @@ def train_saplma_classifier(
     max_iter: Optional[int] = None,
 ):
     """训练一个可直接用于 predict / predict_proba 的 SAPLMA 分类器。"""
+    set_global_seed(random_state)
+
     if classifier_type == "logistic":
         classifier = LogisticRegression(
             C=config.training.logistic_C,
@@ -151,6 +154,8 @@ def train_and_evaluate(
     返回:
         包含 train/val/test 指标的字典。
     """
+    set_global_seed(random_seed)
+
     # 标准化
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
@@ -318,6 +323,7 @@ def run_saplma_experiment(
         "pooling": pooling,
         "classifier_type": classifier_type,
         "num_seeds": len(seeds),
+        "seeds": list(seeds),
         "test_summary": test_summary,
         "per_seed": per_seed_results,
         "best_seed_result": best_seed_result,

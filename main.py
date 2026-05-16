@@ -78,13 +78,14 @@ def preprocess() -> None:
 
 def test_gpu() -> None:
     """快速测试 GPU 与模型加载。"""
+    from src.config import config
     from src.models.loader import print_device_info, load_model
     import torch
 
     print_device_info()
 
-    print("\n加载模型 (Qwen2-1.5B FP16)...")
-    model, tokenizer = load_model(use_4bit=False)
+    print(f"\n加载模型 (Qwen2-1.5B {config.models.primary_dtype})...")
+    model, tokenizer = load_model()
     print(f"模型设备: {next(model.parameters()).device}")
 
     # 简单前向传播测试
@@ -117,12 +118,13 @@ def _load_model_and_data():
         datefmt="%H:%M:%S",
     )
 
+    from src.config import config
     from src.models.loader import load_model, print_device_info
     from src.data.preprocessing import load_processed_data
 
     print_device_info()
 
-    print("\n加载模型 (Qwen2-1.5B FP16)...")
+    print(f"\n加载模型 (Qwen2-1.5B {config.models.primary_dtype})...")
     model, tokenizer = load_model()
     print(f"模型设备: {next(model.parameters()).device}")
 
@@ -138,8 +140,8 @@ def phase2_ppl() -> None:
     model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
 
     from src.methods.probability import evaluate_ppl_method
+    from src.utils.reproducibility import collect_runtime_info
     import json
-    import numpy as np
 
     results = evaluate_ppl_method(
         model=model,
@@ -161,9 +163,11 @@ def phase2_ppl() -> None:
     summary = {
         "method": results["method"],
         "threshold": results["threshold"],
+        "threshold_metric": results["threshold_metric"],
         "train": results["train"],
         "val": results["val"],
         "test": results["test"],
+        "runtime": collect_runtime_info(model),
     }
     with open(out_dir / "ppl_results.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
@@ -179,6 +183,7 @@ def phase2_saplma() -> None:
     model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
 
     from src.methods.saplma import run_saplma_full
+    from src.utils.reproducibility import collect_runtime_info
     import json
 
     results = run_saplma_full(
@@ -196,6 +201,7 @@ def phase2_saplma() -> None:
     from src.config import config
     out_dir = config.paths.results_dir / "baseline"
     out_dir.mkdir(parents=True, exist_ok=True)
+    runtime_info = collect_runtime_info(model)
 
     # 保存摘要
     for clf_name, clf_result in results.items():
@@ -204,7 +210,9 @@ def phase2_saplma() -> None:
             "layer_idx": clf_result["layer_idx"],
             "pooling": clf_result["pooling"],
             "num_seeds": clf_result["num_seeds"],
+            "seeds": clf_result.get("seeds", []),
             "test_summary": clf_result["test_summary"],
+            "runtime": runtime_info,
         }
         fname = f"saplma_{clf_name}_results.json"
         with open(out_dir / fname, "w", encoding="utf-8") as f:
@@ -237,10 +245,11 @@ def phase2() -> None:
     from src.models.loader import load_model, print_device_info
     from src.data.preprocessing import load_processed_data
     from src.config import config
+    from src.utils.reproducibility import collect_runtime_info
 
     print_device_info()
 
-    print("\n加载模型 (Qwen2-1.5B FP16)...")
+    print(f"\n加载模型 (Qwen2-1.5B {config.models.primary_dtype})...")
     model, tokenizer = load_model()
     print(f"模型设备: {next(model.parameters()).device}")
 
@@ -250,6 +259,7 @@ def phase2() -> None:
 
     out_dir = config.paths.results_dir / "baseline"
     out_dir.mkdir(parents=True, exist_ok=True)
+    runtime_info = collect_runtime_info(model)
 
     # ---- P2.1-P2.2: PPL 方法 ------------------------------------------------
     print("\n" + "=" * 50)
@@ -265,7 +275,8 @@ def phase2() -> None:
         batch_size=8, max_length=128, threshold_metric="f1",
     )
     ppl_summary = {k: v for k, v in ppl_results.items()
-                   if k in ("method", "threshold", "train", "val", "test")}
+                   if k in ("method", "threshold", "threshold_metric", "train", "val", "test")}
+    ppl_summary["runtime"] = runtime_info
     with open(out_dir / "ppl_results.json", "w", encoding="utf-8") as f:
         json.dump(ppl_summary, f, indent=2, ensure_ascii=False, default=float)
     print(f"PPL 结果已保存至 {out_dir / 'ppl_results.json'}")
@@ -291,7 +302,9 @@ def phase2() -> None:
             "layer_idx": clf_result["layer_idx"],
             "pooling": clf_result["pooling"],
             "num_seeds": clf_result["num_seeds"],
+            "seeds": clf_result.get("seeds", []),
             "test_summary": clf_result["test_summary"],
+            "runtime": runtime_info,
         }
         fname = f"saplma_{clf_name}_results.json"
         with open(out_dir / fname, "w", encoding="utf-8") as f:
