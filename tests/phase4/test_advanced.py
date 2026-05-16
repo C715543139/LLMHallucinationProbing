@@ -41,7 +41,7 @@ def test_run_attention_ablation_study_selects_fusion(monkeypatch) -> None:
         features = np.full((4, 3), 0.55, dtype=np.float64)
         return features, labels
 
-    def fake_extract_attention_features_dataset(model, tokenizer, dataset, batch_size, max_length):
+    def fake_extract_attention_features_dataset(model, tokenizer, dataset, batch_size, max_length, layer_indices=None, key_token_top_k=None):
         labels = np.array([0, 1, 0, 1], dtype=np.int64)
         features = np.full((4, 2), 0.25, dtype=np.float64)
         return features, labels, ["a", "b"], [{"statement": "x"}] * 4
@@ -81,6 +81,63 @@ def test_run_attention_ablation_study_selects_fusion(monkeypatch) -> None:
     assert results["best_variant"]["name"] == "hidden_plus_attention"
     assert set(results["variants"]) == {"attention_only", "hidden_only", "hidden_plus_attention"}
     assert results["variants"]["hidden_plus_attention"]["feature_dim"] == 5
+    assert results["attention_layer_indices"]
+    assert results["attention_key_token_top_k"] == 3
+
+
+def test_run_attention_ablation_study_can_include_stacking_variant(monkeypatch) -> None:
+    import src.methods.advanced as advanced
+
+    def fake_extract_hidden_states_dataset(model, tokenizer, dataset, pooling, layers, batch_size, max_length):
+        labels = np.array([0, 1, 0, 1], dtype=np.int64)
+        features = np.full((4, 3), 0.55, dtype=np.float64)
+        return features, labels
+
+    def fake_extract_attention_features_dataset(model, tokenizer, dataset, batch_size, max_length, layer_indices=None, key_token_top_k=None):
+        labels = np.array([0, 1, 0, 1], dtype=np.int64)
+        features = np.full((4, 2), 0.25, dtype=np.float64)
+        return features, labels, ["a", "b"], [{"statement": "x"}] * 4
+
+    def fake_train_and_evaluate(X_train, y_train, X_val, y_val, X_test, y_test, classifier_type, random_seed):
+        feature_dim = X_train.shape[1]
+        score = {2: 0.40, 3: 0.72, 5: 0.80}[feature_dim]
+        return {
+            "val": {"accuracy": score, "macro_f1": score, "auroc": score},
+            "test": {"accuracy": score, "macro_f1": score, "auroc": score},
+        }
+
+    def fake_run_stacking_feature_experiment(**kwargs):
+        return {
+            "feature_dim": 5,
+            "stacking_cv": 2,
+            "stack_method": "predict_proba",
+            "val_summary": {"accuracy": {"mean": 0.91, "std": 0.0}, "macro_f1": {"mean": 0.91, "std": 0.0}, "auroc": {"mean": 0.91, "std": 0.0}},
+            "test_summary": {"accuracy": {"mean": 0.90, "std": 0.0}, "macro_f1": {"mean": 0.90, "std": 0.0}, "auroc": {"mean": 0.90, "std": 0.0}},
+            "per_seed": [{"seed": 42, "val": {"accuracy": 0.91, "macro_f1": 0.91, "auroc": 0.91}, "test": {"accuracy": 0.90, "macro_f1": 0.90, "auroc": 0.90}}],
+        }
+
+    monkeypatch.setattr(advanced, "extract_hidden_states_dataset", fake_extract_hidden_states_dataset)
+    monkeypatch.setattr(advanced, "extract_attention_features_dataset", fake_extract_attention_features_dataset)
+    monkeypatch.setattr(advanced, "train_and_evaluate", fake_train_and_evaluate)
+    monkeypatch.setattr(advanced, "_run_stacking_feature_experiment", fake_run_stacking_feature_experiment)
+
+    results = advanced.run_attention_ablation_study(
+        model=DummyModel(),
+        tokenizer=None,
+        train_dataset=object(),
+        val_dataset=object(),
+        test_dataset=object(),
+        classifier_type="mlp",
+        hidden_layer_idx=17,
+        hidden_pooling="last",
+        seeds=(42,),
+        include_stacking_variant=True,
+    )
+
+    assert results["include_stacking_variant"] is True
+    assert "stacked_hidden_attention" in results["variants"]
+    assert results["variants"]["stacked_hidden_attention"]["stacking_cv"] == 2
+    assert results["best_variant"]["name"] == "stacked_hidden_attention"
 
 
 def test_summarize_attention_feature_differences_returns_top_features() -> None:

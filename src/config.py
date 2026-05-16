@@ -99,6 +99,9 @@ class TrainingConfig:
     mlp_alpha: float = 0.0001
     mlp_max_iter: int = 500
 
+    # Stacking / late fusion
+    stacking_cv: int = 5
+
     # 通用
     global_seed: int = 42
     random_seeds: Tuple[int, ...] = (42, 123, 2024)
@@ -119,6 +122,15 @@ class FeatureConfig:
 
     # 是否同时提取所有层的隐藏状态
     extract_all_layers: bool = False
+
+    # Phase 4 注意力特征：优先只统计 Phase 3 发现的高性能层区间
+    attention_focus_layers: Tuple[int, ...] = (13, 14, 15, 16, 17, 18, 19, 20)
+
+    # 基于模型自身注意力发现关键 token 的 top-k 数量
+    attention_key_token_top_k: int = 3
+
+    # 是否对 target attention ratio 做长度/目标 token 数归一化
+    attention_normalize_target_mass: bool = True
 
 
 @dataclass

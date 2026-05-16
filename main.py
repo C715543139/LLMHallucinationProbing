@@ -11,6 +11,8 @@ LLM Hallucination Probing — 主入口。
     python -s main.py phase3           # 运行 Phase 3 层分析 + token 分析
     python -s main.py phase4           # 运行 Phase 4 注意力方法
     python -s main.py phase4-attention # 仅运行 Phase 4 注意力方法
+    python -s main.py phase4-attention-mlp # 运行 Phase 4 MLP 融合版本
+    python -s main.py phase4-attention-stacking # 运行 Phase 4 第三轮 stacking 融合版本
 
 注意: 运行前必须依次激活环境:
     conda activate llm_hallucination
@@ -450,7 +452,11 @@ def phase3() -> None:
 # Phase 4 实验
 # ===========================================================================
 
-def phase4_attention() -> None:
+def phase4_attention(
+    classifier_type: str = "logistic",
+    include_stacking_variant: bool = False,
+    result_suffix: str = "improved",
+) -> None:
     """Phase 4: 基于注意力模式的增强幻觉检测。"""
     model, tokenizer, train_ds, val_ds, test_ds = _load_model_and_data()
 
@@ -470,11 +476,12 @@ def phase4_attention() -> None:
         train_dataset=train_ds,
         val_dataset=val_ds,
         test_dataset=test_ds,
-        classifier_type="logistic",
+        classifier_type=classifier_type,
         hidden_layer_idx=hidden_layer_idx,
         hidden_pooling="last",
-        batch_size=4,
+        batch_size=8,
         max_length=128,
+        include_stacking_variant=include_stacking_variant,
     )
 
     out_dir = config.paths.results_dir / "advanced"
@@ -484,7 +491,8 @@ def phase4_attention() -> None:
         **results,
         "runtime": collect_runtime_info(model),
     }
-    out_path = out_dir / f"attention_ablation_logistic_layer{hidden_layer_idx}_last.json"
+    result_stem = f"attention_ablation_{classifier_type}_layer{hidden_layer_idx}_last_{result_suffix}"
+    out_path = out_dir / f"{result_stem}.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False, default=float)
 
@@ -492,12 +500,12 @@ def phase4_attention() -> None:
         results,
         split="test",
         metric="accuracy",
-        save_path=out_dir / "attention_ablation_accuracy.png",
+        save_path=out_dir / f"{result_stem}_accuracy.png",
     )
     plot_attention_feature_deltas(
         results["attention_feature_summary"]["test"],
         top_k=8,
-        save_path=out_dir / "attention_feature_deltas.png",
+        save_path=out_dir / f"{result_stem}_feature_deltas.png",
     )
 
     print(f"\nPhase 4 注意力方法结果已保存至 {out_path}")
@@ -517,7 +525,7 @@ def phase4() -> None:
     print("  Phase 4: 基于注意力模式的幻觉检测")
     print("=" * 60)
 
-    phase4_attention()
+    phase4_attention(classifier_type="logistic")
 
     elapsed = time.time() - t_start
     print(f"\n{'=' * 60}")
@@ -537,7 +545,7 @@ if __name__ == "__main__":
             "status", "preprocess", "test-gpu",
             "phase2", "phase2-ppl", "phase2-saplma",
             "phase3", "phase3-layer", "phase3-token",
-            "phase4", "phase4-attention",
+                "phase4", "phase4-attention", "phase4-attention-mlp", "phase4-attention-stacking",
         ],
         help="要执行的命令 (默认: status)",
     )
@@ -564,4 +572,8 @@ if __name__ == "__main__":
     elif args.command == "phase4":
         phase4()
     elif args.command == "phase4-attention":
-        phase4_attention()
+        phase4_attention(classifier_type="logistic")
+    elif args.command == "phase4-attention-mlp":
+        phase4_attention(classifier_type="mlp")
+    elif args.command == "phase4-attention-stacking":
+        phase4_attention(classifier_type="mlp", include_stacking_variant=True, result_suffix="stacking_v3")

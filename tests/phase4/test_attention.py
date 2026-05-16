@@ -95,6 +95,18 @@ def test_extract_subject_relation_spans_uses_leading_phrase() -> None:
     assert result["relation_text"] == "is"
 
 
+def test_extract_subject_relation_spans_skips_fronted_phrase_and_nominal_relation_cue() -> None:
+    from src.features.attention import extract_subject_relation_spans
+
+    result = extract_subject_relation_spans("In 1886, Karl Benz invented the first automobile.")
+    assert result["subject_text"] == "Karl Benz"
+    assert result["relation_text"] == "invented"
+
+    result = extract_subject_relation_spans("The capital of France is Paris.")
+    assert result["subject_text"] == "The capital of France"
+    assert result["relation_text"] == "is"
+
+
 def test_compute_attention_feature_dict_prefers_tail_focus() -> None:
     from src.features.attention import compute_attention_feature_dict
 
@@ -126,7 +138,76 @@ def test_compute_attention_feature_dict_prefers_tail_focus() -> None:
 
     assert features["tail_attn_ratio"] > features["subject_attn_ratio"]
     assert features["last_to_tail"] > features["last_to_subject"]
-    assert features["sequence_length"] == 3.0
+    assert features["tail_to_subject"] > 0.0
+    assert features["tail_to_relation"] > 0.0
+    assert features["relation_to_subject"] > 0.0
+    assert features["key_attn_ratio"] > 0.0
+    assert "key_attn_last_layer" in features
+    assert "subject_to_relation" not in features
+
+
+def test_compute_attention_feature_dict_exposes_per_head_key_statistics() -> None:
+    from src.features.attention import compute_attention_feature_dict
+
+    attention = np.array(
+        [
+            [
+                [0.05, 0.15, 0.80],
+                [0.05, 0.15, 0.80],
+                [0.05, 0.10, 0.85],
+            ],
+            [
+                [0.40, 0.40, 0.20],
+                [0.40, 0.40, 0.20],
+                [0.45, 0.35, 0.20],
+            ],
+        ],
+        dtype=np.float64,
+    )
+
+    features = compute_attention_feature_dict(
+        attentions=[attention],
+        attention_mask=np.array([1, 1, 1], dtype=np.int64),
+        anchor_tokens={
+            "subject_token_indices": [0],
+            "relation_token_indices": [1],
+            "tail_token_indices": [2],
+            "content_token_indices": [0, 1, 2],
+        },
+    )
+
+    assert features["key_attn_head_max"] >= features["key_attn_ratio"]
+    assert features["key_attn_head_std"] > 0.0
+    assert features["last_to_key_head_max"] >= features["last_to_key"]
+    assert features["last_to_key_head_std"] > 0.0
+
+
+def test_compute_attention_feature_dict_can_limit_layers() -> None:
+    from src.features.attention import compute_attention_feature_dict
+
+    low_signal = np.array(
+        [[[0.34, 0.33, 0.33], [0.34, 0.33, 0.33], [0.34, 0.33, 0.33]]],
+        dtype=np.float64,
+    )
+    high_signal = np.array(
+        [[[0.05, 0.10, 0.85], [0.05, 0.10, 0.85], [0.05, 0.10, 0.85]]],
+        dtype=np.float64,
+    )
+
+    features = compute_attention_feature_dict(
+        attentions=[low_signal, high_signal],
+        attention_mask=np.array([1, 1, 1], dtype=np.int64),
+        anchor_tokens={
+            "subject_token_indices": [0],
+            "relation_token_indices": [1],
+            "tail_token_indices": [2],
+            "content_token_indices": [0, 1, 2],
+        },
+        layer_indices=[1],
+    )
+
+    assert features["tail_attn_ratio"] > 1.0
+    assert features["tail_attn_ratio"] > features["subject_attn_ratio"]
 
 
 def test_extract_attention_features_dataset_with_dummy_components() -> None:
@@ -151,6 +232,11 @@ def test_extract_attention_features_dataset_with_dummy_components() -> None:
     assert labels.tolist() == [1, 0]
     assert len(metadata) == 2
     assert metadata[0]["subject_text"]
+    assert "sequence_length" not in feature_names
+    assert "key_attn_ratio" in feature_names
+    assert "tail_to_subject" in feature_names
+    assert "subject_to_relation" not in feature_names
+    assert "key_attn_head_max" in feature_names
 
 
 @pytest.mark.model

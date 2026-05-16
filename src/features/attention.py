@@ -23,6 +23,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from src.config import config
+
 if TYPE_CHECKING:
     from src.data.dataset import TrueFalseDataset
 
@@ -36,13 +38,17 @@ _VERB_CUES = {
     "can", "could", "may", "might", "must",
     "shall", "should", "will", "would",
     "contains", "contain", "located", "invented", "founded",
-    "discovered", "created", "born", "capital", "belongs",
+    "discovered", "created", "born", "belongs",
     "becomes", "became", "means", "refers", "uses", "use",
 }
 _RELATION_CONTINUATION_CUES = {
     "is", "are", "was", "were", "has", "have", "had",
     "in", "on", "at", "of", "for", "from", "to", "by", "with",
     "into", "over", "under", "between", "within",
+}
+_LEADING_NON_SUBJECT_CUES = {
+    "in", "on", "at", "during", "after", "before", "from", "by",
+    "for", "within", "between", "under", "over", "despite", "according",
 }
 
 ATTENTION_FEATURE_NAMES: tuple[str, ...] = (
@@ -58,14 +64,18 @@ ATTENTION_FEATURE_NAMES: tuple[str, ...] = (
     "last_to_subject",
     "last_to_relation",
     "last_to_tail",
-    "subject_to_relation",
-    "subject_to_tail",
-    "relation_to_tail",
+    "relation_to_subject",
+    "tail_to_subject",
+    "tail_to_relation",
     "cross_head_agreement_mean",
     "cross_head_agreement_std",
-    "subject_token_count",
-    "relation_token_count",
-    "sequence_length",
+    "key_attn_ratio",
+    "key_attn_last_layer",
+    "last_to_key",
+    "key_attn_head_max",
+    "key_attn_head_std",
+    "last_to_key_head_max",
+    "last_to_key_head_std",
 )
 
 
@@ -85,6 +95,11 @@ def _safe_std(values: Sequence[float]) -> float:
     if not values:
         return 0.0
     arr = np.asarray(values, dtype=np.float64)
+    return float(np.std(arr, ddof=1)) if arr.size > 1 else 0.0
+
+
+def _safe_array_std(values: np.ndarray) -> float:
+    arr = np.asarray(values, dtype=np.float64).reshape(-1)
     return float(np.std(arr, ddof=1)) if arr.size > 1 else 0.0
 
 
@@ -124,10 +139,14 @@ def _looks_like_relation_word(word: str) -> bool:
     lower = word.lower()
     return (
         lower in _VERB_CUES
-        or lower in _RELATION_CONTINUATION_CUES
         or lower.endswith("ed")
         or lower.endswith("ing")
     )
+
+
+def _looks_like_relation_continuation(word: str) -> bool:
+    lower = word.lower()
+    return lower in _RELATION_CONTINUATION_CUES or lower.endswith("ed") or lower.endswith("ing")
 
 
 def extract_subject_relation_spans(statement: str) -> dict[str, object]:
@@ -141,21 +160,31 @@ def extract_subject_relation_spans(statement: str) -> dict[str, object]:
             "relation_text": "",
         }
 
+    subject_start_idx = 0
+    leading_word = str(words[0]["text"]).lower()
+    if leading_word in _LEADING_NON_SUBJECT_CUES:
+        comma_pos = statement.find(",")
+        if comma_pos >= 0:
+            for idx, word in enumerate(words):
+                if int(word["start"]) > comma_pos:
+                    subject_start_idx = idx
+                    break
+
     pivot = None
-    for idx, word in enumerate(words):
+    for idx, word in enumerate(words[subject_start_idx:], start=subject_start_idx):
         if _looks_like_relation_word(str(word["text"])):
             pivot = idx
             break
 
     if pivot is None:
-        subject_end_idx = min(1, len(words) - 1)
+        subject_end_idx = min(subject_start_idx + 1, len(words) - 1)
         relation_start_idx = min(subject_end_idx + 1, len(words) - 1)
     else:
-        subject_end_idx = max(0, pivot - 1)
+        subject_end_idx = max(subject_start_idx, pivot - 1)
         relation_start_idx = pivot
 
     subject_span = (
-        int(words[0]["start"]),
+        int(words[subject_start_idx]["start"]),
         int(words[subject_end_idx]["end"]),
     )
 
@@ -164,7 +193,7 @@ def extract_subject_relation_spans(statement: str) -> dict[str, object]:
     while (
         relation_end_idx + 1 < len(words)
         and max_extra_tokens > 0
-        and _looks_like_relation_word(str(words[relation_end_idx + 1]["text"]))
+        and _looks_like_relation_continuation(str(words[relation_end_idx + 1]["text"]))
     ):
         relation_end_idx += 1
         max_extra_tokens -= 1
@@ -238,6 +267,7 @@ def identify_attention_anchor_tokens(
         "subject_token_indices": subject_token_indices,
         "relation_token_indices": relation_token_indices,
         "tail_token_indices": tail_token_indices,
+        "content_token_indices": content_token_indices,
         "subject_text": span_info["subject_text"],
         "relation_text": span_info["relation_text"],
         "subject_span": span_info["subject_span"],
@@ -250,27 +280,120 @@ def _normalize_attention(layer_attention: np.ndarray, eps: float = 1e-12) -> np.
     return np.divide(layer_attention, np.clip(denom, eps, None), out=np.zeros_like(layer_attention), where=denom > 0)
 
 
-def _target_attention_ratio(layer_attention: np.ndarray, target_indices: Sequence[int]) -> float:
+def _normalize_target_mass(value: float, target_size: int, valid_length: int) -> float:
+    if target_size <= 0 or valid_length <= 0:
+        return 0.0
+    baseline = target_size / float(valid_length)
+    if baseline <= 0:
+        return 0.0
+    return float(value / baseline)
+
+
+def _resolve_selected_layer_indices(num_layers: int, layer_indices: Optional[Sequence[int]]) -> list[int]:
+    if layer_indices is None:
+        configured = list(config.features.attention_focus_layers)
+        usable = [idx for idx in configured if 0 <= idx < num_layers]
+        if usable:
+            return usable
+        return list(range(num_layers))
+
+    resolved: list[int] = []
+    for idx in layer_indices:
+        normalized = num_layers + int(idx) if int(idx) < 0 else int(idx)
+        if normalized < 0 or normalized >= num_layers:
+            raise ValueError(f"注意力层索引 {idx} 超出范围 [0, {num_layers - 1}]")
+        resolved.append(normalized)
+    return sorted(dict.fromkeys(resolved))
+
+
+def _derive_key_token_indices(
+    layer_attention: np.ndarray,
+    valid_length: int,
+    content_indices: Sequence[int],
+    top_k: int,
+) -> list[int]:
+    candidate_indices = [int(idx) for idx in content_indices if 0 <= int(idx) < valid_length - 1]
+    if not candidate_indices:
+        candidate_indices = [int(idx) for idx in content_indices if 0 <= int(idx) < valid_length]
+    if not candidate_indices:
+        candidate_indices = list(range(max(valid_length - 1, 1)))
+
+    k = max(1, min(int(top_k), len(candidate_indices)))
+    last_query_attention = layer_attention[:, valid_length - 1, :valid_length].mean(axis=0)
+    scored = [(float(last_query_attention[idx]), idx) for idx in candidate_indices]
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return sorted(idx for _, idx in scored[:k])
+
+
+def _target_attention_ratio(
+    layer_attention: np.ndarray,
+    target_indices: Sequence[int],
+    valid_length: int,
+    normalize: bool,
+) -> float:
     if not target_indices:
         return 0.0
-    return float(layer_attention[:, :, target_indices].sum(axis=-1).mean())
+    raw = float(layer_attention[:, :, target_indices].sum(axis=-1).mean())
+    return _normalize_target_mass(raw, len(target_indices), valid_length) if normalize else raw
 
 
 def _query_to_target_mass(
     layer_attention: np.ndarray,
     query_indices: Sequence[int],
     target_indices: Sequence[int],
+    valid_length: int,
+    normalize: bool,
 ) -> float:
     if not query_indices or not target_indices:
         return 0.0
     query_slice = layer_attention[:, list(query_indices), :]
-    return float(query_slice[:, :, list(target_indices)].sum(axis=-1).mean())
+    raw = float(query_slice[:, :, list(target_indices)].sum(axis=-1).mean())
+    return _normalize_target_mass(raw, len(target_indices), valid_length) if normalize else raw
+
+
+def _per_head_target_attention_ratio(
+    layer_attention: np.ndarray,
+    target_indices: Sequence[int],
+    valid_length: int,
+    normalize: bool,
+) -> np.ndarray:
+    if not target_indices:
+        return np.zeros(layer_attention.shape[0], dtype=np.float64)
+    raw = layer_attention[:, :, list(target_indices)].sum(axis=-1).mean(axis=-1)
+    if not normalize:
+        return np.asarray(raw, dtype=np.float64)
+    return np.asarray(
+        [_normalize_target_mass(float(value), len(target_indices), valid_length) for value in raw],
+        dtype=np.float64,
+    )
+
+
+def _per_head_query_to_target_mass(
+    layer_attention: np.ndarray,
+    query_indices: Sequence[int],
+    target_indices: Sequence[int],
+    valid_length: int,
+    normalize: bool,
+) -> np.ndarray:
+    if not query_indices or not target_indices:
+        return np.zeros(layer_attention.shape[0], dtype=np.float64)
+    query_slice = layer_attention[:, list(query_indices), :]
+    raw = query_slice[:, :, list(target_indices)].sum(axis=-1).mean(axis=-1)
+    if not normalize:
+        return np.asarray(raw, dtype=np.float64)
+    return np.asarray(
+        [_normalize_target_mass(float(value), len(target_indices), valid_length) for value in raw],
+        dtype=np.float64,
+    )
 
 
 def compute_attention_feature_dict(
     attentions: Sequence[np.ndarray | torch.Tensor],
     attention_mask: Union[np.ndarray, Sequence[int], torch.Tensor],
     anchor_tokens: dict[str, object],
+    layer_indices: Optional[Sequence[int]] = None,
+    key_token_top_k: Optional[int] = None,
+    normalize_target_mass: Optional[bool] = None,
 ) -> dict[str, float]:
     """基于单条样本的多层注意力矩阵计算统计特征。"""
     mask_array = np.asarray(attention_mask, dtype=np.int64).reshape(-1)
@@ -278,9 +401,15 @@ def compute_attention_feature_dict(
     if valid_length <= 0:
         raise ValueError("attention_mask 未包含任何有效 token")
 
+    if normalize_target_mass is None:
+        normalize_target_mass = config.features.attention_normalize_target_mass
+    if key_token_top_k is None:
+        key_token_top_k = config.features.attention_key_token_top_k
+
     subject_indices = [int(i) for i in anchor_tokens.get("subject_token_indices", []) if 0 <= int(i) < valid_length]
     relation_indices = [int(i) for i in anchor_tokens.get("relation_token_indices", []) if 0 <= int(i) < valid_length]
     tail_indices = [int(i) for i in anchor_tokens.get("tail_token_indices", []) if 0 <= int(i) < valid_length]
+    content_indices = [int(i) for i in anchor_tokens.get("content_token_indices", []) if 0 <= int(i) < valid_length]
 
     if not subject_indices:
         subject_indices = [0]
@@ -288,20 +417,33 @@ def compute_attention_feature_dict(
         relation_indices = [min(1, valid_length - 1)]
     if not tail_indices:
         tail_indices = [valid_length - 1]
+    if not content_indices:
+        content_indices = list(range(valid_length))
+
+    selected_layer_indices = _resolve_selected_layer_indices(len(attentions), layer_indices)
 
     layer_entropies: list[float] = []
     subject_ratios: list[float] = []
     relation_ratios: list[float] = []
     tail_ratios: list[float] = []
+    key_ratios: list[float] = []
     head_agreements: list[float] = []
     last_to_subject: list[float] = []
     last_to_relation: list[float] = []
     last_to_tail: list[float] = []
-    subject_to_relation: list[float] = []
-    subject_to_tail: list[float] = []
-    relation_to_tail: list[float] = []
+    last_to_key: list[float] = []
+    relation_to_subject: list[float] = []
+    tail_to_subject: list[float] = []
+    tail_to_relation: list[float] = []
+    key_head_max: list[float] = []
+    key_head_std: list[float] = []
+    last_to_key_head_max: list[float] = []
+    last_to_key_head_std: list[float] = []
 
-    for layer_attention in attentions:
+    last_selected_normalized: Optional[np.ndarray] = None
+
+    for layer_idx in selected_layer_indices:
+        layer_attention = attentions[layer_idx]
         layer = layer_attention.detach().cpu().numpy() if hasattr(layer_attention, "detach") else np.asarray(layer_attention)
         layer = np.asarray(layer, dtype=np.float64)
         if layer.ndim == 4:
@@ -311,22 +453,52 @@ def compute_attention_feature_dict(
 
         cropped = layer[:, :valid_length, :valid_length]
         normalized = _normalize_attention(cropped)
+        last_selected_normalized = normalized
 
         entropy = _safe_entropy(normalized, axis=-1)
         layer_entropies.append(float(np.mean(entropy)))
         head_agreements.append(_mean_pairwise_cosine(normalized.reshape(normalized.shape[0], -1)))
 
-        subject_ratios.append(_target_attention_ratio(normalized, subject_indices))
-        relation_ratios.append(_target_attention_ratio(normalized, relation_indices))
-        tail_ratios.append(_target_attention_ratio(normalized, tail_indices))
+        subject_ratios.append(_target_attention_ratio(normalized, subject_indices, valid_length, normalize_target_mass))
+        relation_ratios.append(_target_attention_ratio(normalized, relation_indices, valid_length, normalize_target_mass))
+        tail_ratios.append(_target_attention_ratio(normalized, tail_indices, valid_length, normalize_target_mass))
 
         last_query = [valid_length - 1]
-        last_to_subject.append(_query_to_target_mass(normalized, last_query, subject_indices))
-        last_to_relation.append(_query_to_target_mass(normalized, last_query, relation_indices))
-        last_to_tail.append(_query_to_target_mass(normalized, last_query, tail_indices))
-        subject_to_relation.append(_query_to_target_mass(normalized, subject_indices, relation_indices))
-        subject_to_tail.append(_query_to_target_mass(normalized, subject_indices, tail_indices))
-        relation_to_tail.append(_query_to_target_mass(normalized, relation_indices, tail_indices))
+        last_to_subject.append(_query_to_target_mass(normalized, last_query, subject_indices, valid_length, normalize_target_mass))
+        last_to_relation.append(_query_to_target_mass(normalized, last_query, relation_indices, valid_length, normalize_target_mass))
+        last_to_tail.append(_query_to_target_mass(normalized, last_query, tail_indices, valid_length, normalize_target_mass))
+        relation_to_subject.append(_query_to_target_mass(normalized, relation_indices, subject_indices, valid_length, normalize_target_mass))
+        tail_to_subject.append(_query_to_target_mass(normalized, tail_indices, subject_indices, valid_length, normalize_target_mass))
+        tail_to_relation.append(_query_to_target_mass(normalized, tail_indices, relation_indices, valid_length, normalize_target_mass))
+
+    key_indices = _derive_key_token_indices(
+        last_selected_normalized if last_selected_normalized is not None else _normalize_attention(np.asarray(attentions[selected_layer_indices[-1]])[:, :valid_length, :valid_length]),
+        valid_length=valid_length,
+        content_indices=content_indices,
+        top_k=key_token_top_k,
+    )
+
+    for layer_idx in selected_layer_indices:
+        layer_attention = attentions[layer_idx]
+        layer = layer_attention.detach().cpu().numpy() if hasattr(layer_attention, "detach") else np.asarray(layer_attention)
+        layer = np.asarray(layer, dtype=np.float64)
+        if layer.ndim == 4:
+            layer = layer[0]
+        normalized = _normalize_attention(layer[:, :valid_length, :valid_length])
+        key_ratios.append(_target_attention_ratio(normalized, key_indices, valid_length, normalize_target_mass))
+        last_to_key.append(_query_to_target_mass(normalized, [valid_length - 1], key_indices, valid_length, normalize_target_mass))
+        key_per_head = _per_head_target_attention_ratio(normalized, key_indices, valid_length, normalize_target_mass)
+        last_to_key_per_head = _per_head_query_to_target_mass(
+            normalized,
+            [valid_length - 1],
+            key_indices,
+            valid_length,
+            normalize_target_mass,
+        )
+        key_head_max.append(float(np.max(key_per_head)) if key_per_head.size else 0.0)
+        key_head_std.append(_safe_array_std(key_per_head))
+        last_to_key_head_max.append(float(np.max(last_to_key_per_head)) if last_to_key_per_head.size else 0.0)
+        last_to_key_head_std.append(_safe_array_std(last_to_key_per_head))
 
     return {
         "attn_entropy_mean": _safe_mean(layer_entropies),
@@ -341,14 +513,18 @@ def compute_attention_feature_dict(
         "last_to_subject": _safe_mean(last_to_subject),
         "last_to_relation": _safe_mean(last_to_relation),
         "last_to_tail": _safe_mean(last_to_tail),
-        "subject_to_relation": _safe_mean(subject_to_relation),
-        "subject_to_tail": _safe_mean(subject_to_tail),
-        "relation_to_tail": _safe_mean(relation_to_tail),
+        "relation_to_subject": _safe_mean(relation_to_subject),
+        "tail_to_subject": _safe_mean(tail_to_subject),
+        "tail_to_relation": _safe_mean(tail_to_relation),
         "cross_head_agreement_mean": _safe_mean(head_agreements),
         "cross_head_agreement_std": _safe_std(head_agreements),
-        "subject_token_count": float(len(subject_indices)),
-        "relation_token_count": float(len(relation_indices)),
-        "sequence_length": float(valid_length),
+        "key_attn_ratio": _safe_mean(key_ratios),
+        "key_attn_last_layer": float(key_ratios[-1]) if key_ratios else 0.0,
+        "last_to_key": _safe_mean(last_to_key),
+        "key_attn_head_max": _safe_mean(key_head_max),
+        "key_attn_head_std": _safe_mean(key_head_std),
+        "last_to_key_head_max": _safe_mean(last_to_key_head_max),
+        "last_to_key_head_std": _safe_mean(last_to_key_head_std),
     }
 
 
@@ -401,6 +577,8 @@ def extract_attention_features(
     statements: Union[Sequence[str], str],
     batch_size: int = 4,
     max_length: int = 128,
+    layer_indices: Optional[Sequence[int]] = None,
+    key_token_top_k: Optional[int] = None,
 ) -> tuple[np.ndarray, list[str], list[dict[str, object]]]:
     """批量提取注意力统计特征。"""
     if isinstance(statements, str):
@@ -462,8 +640,11 @@ def extract_attention_features(
                 per_example_attentions,
                 attention_mask=sample_mask[:valid_length],
                 anchor_tokens=anchors,
+                layer_indices=layer_indices,
+                key_token_top_k=key_token_top_k,
             )
             feature_rows.append([feature_dict[name] for name in ATTENTION_FEATURE_NAMES])
+            anchors["key_token_top_k"] = key_token_top_k or config.features.attention_key_token_top_k
             metadata.append({
                 "statement": statement,
                 **anchors,
@@ -478,6 +659,8 @@ def extract_attention_features_dataset(
     dataset: TrueFalseDataset,
     batch_size: int = 4,
     max_length: int = 128,
+    layer_indices: Optional[Sequence[int]] = None,
+    key_token_top_k: Optional[int] = None,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[dict[str, object]]]:
     """从 TrueFalseDataset 提取注意力特征。"""
     features, feature_names, metadata = extract_attention_features(
@@ -486,6 +669,8 @@ def extract_attention_features_dataset(
         statements=dataset.statements,
         batch_size=batch_size,
         max_length=max_length,
+        layer_indices=layer_indices,
+        key_token_top_k=key_token_top_k,
     )
     labels = np.asarray(dataset.labels, dtype=np.int64)
     return features, labels, feature_names, metadata

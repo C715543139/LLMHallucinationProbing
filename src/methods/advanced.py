@@ -6,6 +6,13 @@ import logging
 from typing import TYPE_CHECKING, Dict, Iterable, Optional, Sequence
 
 import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.ensemble import StackingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold
+from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from src.config import config
 from src.features.attention import (
@@ -14,11 +21,29 @@ from src.features.attention import (
 )
 from src.features.hidden_states import extract_hidden_states_dataset
 from src.methods.saplma import train_and_evaluate
+from src.utils.metrics import compute_metrics
+from src.utils.reproducibility import set_global_seed
 
 if TYPE_CHECKING:
     from src.data.dataset import TrueFalseDataset
 
 logger = logging.getLogger(__name__)
+
+
+class _ColumnSelector(BaseEstimator, TransformerMixin):
+    """在 stacking 分支中为不同基分类器选择特征子块。"""
+
+    def __init__(self, indices: Sequence[int]):
+        self.indices = indices
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X_array = np.asarray(X, dtype=np.float64)
+        if X_array.ndim != 2:
+            raise ValueError(f"输入特征必须为二维矩阵，实际为 {X_array.shape}")
+        return X_array[:, tuple(int(idx) for idx in self.indices)]
 
 
 def _resolve_layer_idx(num_hidden_layers: int, layer_idx: int) -> int:
@@ -40,6 +65,53 @@ def _summarize_split_metrics(per_seed_results: list[Dict], split: str) -> Dict[s
         }
 
     return summary
+
+
+def _create_classifier_estimator(classifier_type: str, random_seed: int):
+    if classifier_type == "logistic":
+        return LogisticRegression(
+            C=config.training.logistic_C,
+            max_iter=config.training.logistic_max_iter,
+            penalty=config.training.logistic_penalty,
+            random_state=random_seed,
+            n_jobs=config.training.n_jobs,
+        )
+    if classifier_type == "mlp":
+        return MLPClassifier(
+            hidden_layer_sizes=config.training.mlp_hidden_sizes,
+            activation=config.training.mlp_activation,
+            alpha=config.training.mlp_alpha,
+            max_iter=config.training.mlp_max_iter,
+            random_state=random_seed,
+        )
+    raise ValueError(f"不支持的分类器类型: {classifier_type}")
+
+
+def _build_subset_pipeline(column_indices: Sequence[int], classifier_type: str, random_seed: int) -> Pipeline:
+    return Pipeline(
+        steps=[
+            ("select", _ColumnSelector(column_indices)),
+            ("scale", StandardScaler()),
+            ("clf", _create_classifier_estimator(classifier_type, random_seed=random_seed)),
+        ]
+    )
+
+
+def _resolve_stacking_cv(labels: np.ndarray) -> int:
+    labels = np.asarray(labels, dtype=np.int64).reshape(-1)
+    if labels.size == 0:
+        return 2
+    _, counts = np.unique(labels, return_counts=True)
+    min_count = int(np.min(counts)) if counts.size else 2
+    return max(2, min(int(config.training.stacking_cv), min_count))
+
+
+def _positive_class_scores(classifier, X: np.ndarray) -> np.ndarray:
+    if hasattr(classifier, "predict_proba"):
+        probabilities = np.asarray(classifier.predict_proba(X), dtype=np.float64)
+        if probabilities.ndim == 2 and probabilities.shape[1] >= 2:
+            return probabilities[:, 1]
+    return np.asarray(classifier.predict(X), dtype=np.float64)
 
 
 def concatenate_feature_blocks(*feature_blocks: np.ndarray) -> np.ndarray:
@@ -97,6 +169,73 @@ def _run_multi_seed_feature_experiment(
     }
 
 
+def _run_stacking_feature_experiment(
+    X_hidden_train: np.ndarray,
+    X_attention_train: np.ndarray,
+    y_train: np.ndarray,
+    X_hidden_val: np.ndarray,
+    X_attention_val: np.ndarray,
+    y_val: np.ndarray,
+    X_hidden_test: np.ndarray,
+    X_attention_test: np.ndarray,
+    y_test: np.ndarray,
+    classifier_type: str,
+    seeds: Sequence[int],
+) -> Dict[str, object]:
+    X_train = concatenate_feature_blocks(X_hidden_train, X_attention_train)
+    X_val = concatenate_feature_blocks(X_hidden_val, X_attention_val)
+    X_test = concatenate_feature_blocks(X_hidden_test, X_attention_test)
+
+    hidden_dim = int(X_hidden_train.shape[1])
+    hidden_indices = tuple(range(hidden_dim))
+    attention_indices = tuple(range(hidden_dim, X_train.shape[1]))
+    stacking_cv = _resolve_stacking_cv(y_train)
+
+    per_seed_results: list[Dict[str, object]] = []
+    for seed in seeds:
+        set_global_seed(int(seed))
+        estimator = StackingClassifier(
+            estimators=[
+                ("hidden", _build_subset_pipeline(hidden_indices, classifier_type=classifier_type, random_seed=int(seed))),
+                ("attention", _build_subset_pipeline(attention_indices, classifier_type=classifier_type, random_seed=int(seed))),
+            ],
+            final_estimator=LogisticRegression(
+                C=config.training.logistic_C,
+                max_iter=config.training.logistic_max_iter,
+                penalty=config.training.logistic_penalty,
+                random_state=int(seed),
+                n_jobs=config.training.n_jobs,
+            ),
+            stack_method="predict_proba",
+            cv=StratifiedKFold(n_splits=stacking_cv, shuffle=True, random_state=int(seed)),
+            n_jobs=config.training.n_jobs,
+            passthrough=False,
+        )
+        estimator.fit(X_train, y_train)
+
+        y_pred_val = np.asarray(estimator.predict(X_val), dtype=np.int64)
+        y_pred_test = np.asarray(estimator.predict(X_test), dtype=np.int64)
+        y_score_val = _positive_class_scores(estimator, X_val)
+        y_score_test = _positive_class_scores(estimator, X_test)
+
+        per_seed_results.append(
+            {
+                "seed": int(seed),
+                "val": compute_metrics(y_val, y_pred_val, y_score_val),
+                "test": compute_metrics(y_test, y_pred_test, y_score_test),
+            }
+        )
+
+    return {
+        "feature_dim": int(X_train.shape[1]),
+        "stacking_cv": int(stacking_cv),
+        "stack_method": "predict_proba",
+        "val_summary": _summarize_split_metrics(per_seed_results, split="val"),
+        "test_summary": _summarize_split_metrics(per_seed_results, split="test"),
+        "per_seed": per_seed_results,
+    }
+
+
 def run_attention_ablation_study(
     model,
     tokenizer,
@@ -110,6 +249,9 @@ def run_attention_ablation_study(
     max_length: int = 128,
     seeds: Optional[Iterable[int]] = None,
     selection_metric: str = "accuracy",
+    attention_layer_indices: Optional[Sequence[int]] = None,
+    attention_key_token_top_k: Optional[int] = None,
+    include_stacking_variant: bool = False,
 ) -> Dict[str, object]:
     """运行 Phase 4 注意力特征消融：attention-only / hidden-only / fusion。"""
     if seeds is None:
@@ -118,6 +260,11 @@ def run_attention_ablation_study(
 
     if selection_metric not in {"accuracy", "macro_f1", "auroc"}:
         raise ValueError(f"不支持的 selection_metric: {selection_metric}")
+
+    if attention_layer_indices is None:
+        attention_layer_indices = config.features.attention_focus_layers
+    if attention_key_token_top_k is None:
+        attention_key_token_top_k = config.features.attention_key_token_top_k
 
     resolved_hidden_layer = _resolve_layer_idx(model.config.num_hidden_layers, hidden_layer_idx)
 
@@ -166,6 +313,8 @@ def run_attention_ablation_study(
         train_dataset,
         batch_size=batch_size,
         max_length=max_length,
+        layer_indices=attention_layer_indices,
+        key_token_top_k=attention_key_token_top_k,
     )
     X_attention_val, y_val_attention, feature_names_val, _ = extract_attention_features_dataset(
         model,
@@ -173,6 +322,8 @@ def run_attention_ablation_study(
         val_dataset,
         batch_size=batch_size,
         max_length=max_length,
+        layer_indices=attention_layer_indices,
+        key_token_top_k=attention_key_token_top_k,
     )
     X_attention_test, y_test_attention, feature_names_test, _ = extract_attention_features_dataset(
         model,
@@ -180,6 +331,8 @@ def run_attention_ablation_study(
         test_dataset,
         batch_size=batch_size,
         max_length=max_length,
+        layer_indices=attention_layer_indices,
+        key_token_top_k=attention_key_token_top_k,
     )
 
     if not np.array_equal(y_train, y_train_attention):
@@ -221,6 +374,22 @@ def run_attention_ablation_study(
             seeds=seeds,
         )
 
+    if include_stacking_variant:
+        logger.info("运行变体: stacked_hidden_attention (late fusion stacking)")
+        variant_results["stacked_hidden_attention"] = _run_stacking_feature_experiment(
+            X_hidden_train=X_hidden_train,
+            X_attention_train=X_attention_train,
+            y_train=y_train,
+            X_hidden_val=X_hidden_val,
+            X_attention_val=X_attention_val,
+            y_val=y_val,
+            X_hidden_test=X_hidden_test,
+            X_attention_test=X_attention_test,
+            y_test=y_test,
+            classifier_type=classifier_type,
+            seeds=seeds,
+        )
+
     best_variant_name = max(
         variant_results,
         key=lambda name: variant_results[name]["val_summary"][selection_metric]["mean"],
@@ -235,6 +404,9 @@ def run_attention_ablation_study(
         "num_seeds": len(seeds),
         "seeds": list(seeds),
         "selection_metric": selection_metric,
+        "attention_layer_indices": [int(idx) for idx in attention_layer_indices],
+        "attention_key_token_top_k": int(attention_key_token_top_k),
+        "include_stacking_variant": bool(include_stacking_variant),
         "attention_feature_names": list(feature_names),
         "num_attention_features": len(feature_names),
         "variants": variant_results,
