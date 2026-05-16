@@ -27,17 +27,21 @@
 - **集合职责**：训练集用于分类器训练；验证集仅用于阈值调优、模型选择和早停；测试集仅用于最终一次性能汇报与主结果图表生成，避免将调参结果误写为最终结果
 - **随机种子**：所有分类实验固定随机种子（默认 42），建议在 3 个随机种子（42, 123, 2024）下重复实验，报告均值与标准差
 - **种子约定**：数据划分使用固定 split seed（建议 42）一次生成并全程复用；42、123、2024 这 3 个随机种子仅用于分类器训练与阈值调优过程中的随机性控制，不重新划分数据集
+- **运行时确定性**：最终基线与后续分析实验默认显式使用 float16 加载模型，不依赖 auto dtype；实验前固定 Python / NumPy / PyTorch 随机种子，关闭 cudnn benchmark，并启用 deterministic algorithms（warn_only 模式）
+- **结果归档约定**：结果摘要文件需记录阈值优化指标、随机种子与关键运行环境信息（如 Python、PyTorch、Transformers、CUDA、GPU、模型 dtype），便于跨设备对账与复现
 - **分析使用边界**：若层深度分析或 token 位置分析的结论将用于后续方法选择（如 Phase 3 指导 Phase 4 的特征选取），则该选择过程仅基于训练集与验证集完成；测试集只用于固定方案后的最终结果汇报，避免隐性数据泄漏
 - **统一指标**：Accuracy、Macro-F1 与 AUROC，确保不同方法之间可比
 - **层分析约定**：层分析统一以 Transformer block 输出为统计对象，不将 embedding output 计入层号；层索引通过 `model.config.num_hidden_layers` 动态获取，不硬编码具体数值
 - **Subject token 提取**：若实验中需要定位主语实体，优先使用依存句法或 noun chunk 规则抽取句首主语短语；对于能够稳定识别的命名实体样本，可辅以 NER 工具（如 spaCy）做对齐检查。若自动解析不可靠，则退化为手工规则，并仅在报告中标注结果。Subject token 分析作为可选项，保底至少比较 First token、Last token 与 Mean pooling
 
-### 1.4 当前实现同步（截至 2026-05-15）
+### 1.4 当前实现同步（截至 2026-05-16）
 
 结合当前工作区中的真实代码与目录结构，项目当前状态如下：
 
 - **Phase 1 已完成**：环境、配置、数据加载/预处理、模型加载与 Phase 1 测试均已落地
 - **Phase 2 已完成**：PPL 与 SAPLMA 两类基线方法已实现，并完成 `tests/phase2/` 自动化测试
+- **Phase 2 复现性修正已完成**：当前代码已显式固定 float16、随机种子与确定性运行选项，并支持在结果摘要中记录 seeds / runtime 等关键信息
+- **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 尚未开始实现**：`src/analysis/` 当前仅保留 `__init__.py`，层分析、token 位置分析和可视化模块仍待补齐
 - **Phase 4 尚未开始实现**：注意力特征、FFN 特征与进阶方法模块尚未在 `src/` 中落地
 - **里程碑文档已整合**：M1 与 M2 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
@@ -94,6 +98,7 @@ LLMHallucinationProbing/
 ├── docs/
 │   ├── Project_Plan.md
 │   ├── Proposal.md
+│   ├── Report.md
 │   ├── 利用大语言模型内部状态进行幻觉检测.md
 │   └── revision/
 │       └── Project_Plan_review_v*.md
@@ -116,7 +121,8 @@ LLMHallucinationProbing/
 │           ├── phase2_run.log
 │           ├── ppl_results.json
 │           ├── saplma_logistic_results.json
-│           └── saplma_mlp_results.json
+│           ├── saplma_mlp_results.json
+│           └── saplma_mlp_results_rerun_best.json
 ├── models_cache/
 │   └── Qwen2-1.5B/
 │       ├── config.json
@@ -143,7 +149,8 @@ LLMHallucinationProbing/
 │   │   └── __init__.py
 │   └── utils/
 │       ├── __init__.py
-│       └── metrics.py
+│       ├── metrics.py
+│       └── reproducibility.py
 ├── tests/
 │   ├── conftest.py
 │   ├── phase1/
@@ -165,14 +172,15 @@ LLMHallucinationProbing/
 
 #### 已实现
 
-- `src/config.py`：全局配置与路径/模型/训练超参数管理
+- `src/config.py`：全局配置与路径/模型/训练超参数、确定性选项管理
 - `src/data/dataset.py`：原始 CSV 加载、`TrueFalseDataset`、`.pt` 序列化
 - `src/data/preprocessing.py`：分层划分与预处理流水线
-- `src/models/loader.py`：Qwen2-1.5B 加载、GPU 信息查询
+- `src/models/loader.py`：Qwen2-1.5B 加载、GPU 信息查询与显式 float16 加载
 - `src/methods/probability.py`：PPL 打分、阈值调优、PPL 方法评估
 - `src/features/hidden_states.py`：最后 token 特征提取、批量/全层隐藏状态提取
 - `src/methods/saplma.py`：逻辑回归 / MLP 分类器训练、预测与完整 SAPLMA 实验
 - `src/utils/metrics.py`：Accuracy、Macro-F1、AUROC、阈值搜索等评估逻辑
+- `src/utils/reproducibility.py`：随机种子、确定性运行与环境信息记录
 - `main.py`：状态检查、预处理、Phase 2 运行入口
 
 #### 计划中但尚未实现
@@ -493,11 +501,10 @@ def extract_last_token_hidden(model, tokenizer, statement, layer_idx=-1):
 - `src/methods/probability.py` 已实现 PPL 打分、阈值调优与完整评估流水线
 - `src/features/hidden_states.py` 已实现最后 token 特征提取、批量提取与全层提取接口
 - `src/methods/saplma.py` 已实现 LR / MLP 分类器训练、预测与多随机种子 SAPLMA 实验
+- `src/config.py`、`src/models/loader.py` 与 `src/utils/reproducibility.py` 已补充显式 float16、全局随机种子与确定性运行设置
 - `main.py` 已提供 `phase2`、`phase2-ppl`、`phase2-saplma` 运行入口
-- `experiments/results/baseline/` 已存在 Phase 2 结果文件：
-  - `ppl_results.json`
-  - `saplma_logistic_results.json`
-  - `saplma_mlp_results.json`
+- `experiments/results/baseline/` 已存在 Phase 2 结果文件：`ppl_results.json`、`saplma_logistic_results.json`、`saplma_mlp_results.json`（历史本地结果）与 `saplma_mlp_results_rerun_best.json`（修改后方案重跑并在报告中采用的最终结果）
+- 新的结果摘要写盘逻辑已支持记录 `threshold_metric`、`seeds` 与 `runtime` 等复现信息
 - `tests/phase2/` 已建立并通过真实代码验证
 - Phase 2 的阶段性记录已同步整合到本节下方，不再单独保留里程碑文档
 
@@ -586,6 +593,7 @@ LLMHallucinationProbing/
 - **PPL 阈值方向不能反**：PPL 越低表示模型越认可该陈述，阈值搜索与评估实现必须遵守这一方向约定
 - **测试不仅验证接口存在，还验证边界**：需要同时覆盖 dummy model、真实模型、批量与单样本逻辑、返回维度稳定性、异常路径与合理退化逻辑
 - **延迟导入降低环境噪声影响**：按需导入可减少 Windows 环境下原生依赖初始化带来的额外干扰
+- **复现实验要显式约束运行条件**：为减小跨设备漂移，Phase 2 最终代码路径已固定 float16、随机种子与确定性运行选项；后续 Phase 3 / Phase 4 建议沿用同一约定
 
 ##### M2 达成情况总结
 
