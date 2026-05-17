@@ -102,6 +102,12 @@ def load_model_fp16(
 
     这是主实验路径（Qwen2-1.5B），也适用于其他 HF 兼容的 CausalLM 模型。
 
+    注意:
+        如需提取 attention weights，请在加载后调用:
+            model.set_attn_implementation('eager')
+        不要在 from_pretrained 时传递 attn_implementation='eager'，
+        这可能导致某些 transformers 版本下模型输出 NaN。
+
     参数:
         model_path: 模型路径或 HuggingFace Hub ID，默认使用 config 中的 primary。
         device_map: 设备映射策略，默认 "auto"。
