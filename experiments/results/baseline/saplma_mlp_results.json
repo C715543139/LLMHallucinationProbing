@@ -3,36 +3,18 @@
   "layer_idx": 27,
   "pooling": "last",
   "num_seeds": 3,
-  "seeds": [
-    42,
-    123,
-    2024
-  ],
   "test_summary": {
     "accuracy": {
-      "mean": 0.7633386159535128,
-      "std": 0.012309751925759147
+      "mean": 0.7712625462229266,
+      "std": 0.0032989952447957413
     },
     "macro_f1": {
-      "mean": 0.7631975204330606,
-      "std": 0.012191507240877678
+      "mean": 0.7712274216509004,
+      "std": 0.0033267925181847866
     },
     "auroc": {
-      "mean": 0.8647133088200821,
-      "std": 0.00912712235930742
+      "mean": 0.8708148311867494,
+      "std": 0.004683723457690568
     }
-  },
-  "runtime": {
-    "python": "3.10.20",
-    "platform": "Windows-10-10.0.26200-SP0",
-    "torch": "2.6.0+cu124",
-    "cuda_available": true,
-    "cuda_version": "12.4",
-    "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
-    "transformers": "4.57.6",
-    "scikit_learn": "1.7.2",
-    "model_device": "cuda:0",
-    "model_dtype": "torch.float16",
-    "model_config_dtype": "torch.float16"
   }
 }
