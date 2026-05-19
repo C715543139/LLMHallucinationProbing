@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
 
 # 注意: transformers 必须在 torch 之前导入，
-# 否则在 Windows + CUDA 12.4 环境下可能触发 ACCESS VIOLATION。
+# 否则在部分 CUDA 环境下可能触发底层初始化异常。
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -101,6 +101,12 @@ def load_model_fp16(
     """以显式精度加载因果语言模型及其分词器。
 
     这是主实验路径（Qwen2-1.5B），也适用于其他 HF 兼容的 CausalLM 模型。
+
+    注意:
+        如需提取 attention weights，请在加载后调用:
+            model.set_attn_implementation('eager')
+        不要在 from_pretrained 时传递 attn_implementation='eager'，
+        这可能导致某些 transformers 版本下模型输出 NaN。
 
     参数:
         model_path: 模型路径或 HuggingFace Hub ID，默认使用 config 中的 primary。

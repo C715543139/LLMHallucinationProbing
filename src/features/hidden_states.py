@@ -86,7 +86,7 @@ def extract_last_token_hidden(
     else:
         pooled = target_hidden[:, -1, :]
 
-    array = pooled.detach().cpu().numpy()
+    array = pooled.detach().to(dtype=torch.float32).cpu().numpy()
     return array[0] if array.shape[0] == 1 else array
 
 
@@ -194,7 +194,7 @@ def extract_hidden_states(
             else:
                 raise ValueError(f"不支持的池化策略: {pooling}")
 
-            all_features[i].append(pooled.cpu().numpy())
+            all_features[i].append(pooled.to(dtype=torch.float32).cpu().numpy())
 
     # 拼接所有 batch
     result = []

@@ -1,0 +1,42 @@
+{
+  "method": "hidden_layer17_last_logistic",
+  "feature": {
+    "layer": 17,
+    "pooling": "last",
+    "dim": 1536
+  },
+  "classifier": "logistic",
+  "seeds": [
+    42,
+    123,
+    2024
+  ],
+  "val": {
+    "accuracy": {
+      "mean": 0.7987321711568938,
+      "std": 0.0
+    },
+    "macro_f1": {
+      "mean": 0.7986026815445898,
+      "std": 0.0
+    },
+    "auroc": {
+      "mean": 0.887620808133577,
+      "std": 0.0
+    }
+  },
+  "test": {
+    "accuracy": {
+      "mean": 0.8082408874801902,
+      "std": 0.0
+    },
+    "macro_f1": {
+      "mean": 0.8081464450391366,
+      "std": 1.3597399555105182e-16
+    },
+    "auroc": {
+      "mean": 0.8897004159215576,
+      "std": 0.0
+    }
+  }
+}

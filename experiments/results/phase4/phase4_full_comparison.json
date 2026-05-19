@@ -1,0 +1,83 @@
+[
+  {
+    "Phase": "Phase 2",
+    "Method": "PPL (sequence probability)",
+    "Classifier": "Threshold (F1 opt)",
+    "Feature": "Perplexity",
+    "Test Acc": "0.5293",
+    "Test F1": "0.4180",
+    "Test AUROC": "0.6784"
+  },
+  {
+    "Phase": "Phase 2",
+    "Method": "SAPLMA (Logistic Regression)",
+    "Classifier": "LR",
+    "Feature": "L27 last hidden",
+    "Test Acc": "0.7417±0.0000",
+    "Test F1": "0.7417±0.0000",
+    "Test AUROC": "0.8278±0.0000"
+  },
+  {
+    "Phase": "Phase 2",
+    "Method": "SAPLMA (MLP)",
+    "Classifier": "MLP",
+    "Feature": "L27 last hidden",
+    "Test Acc": "0.7697±0.0191",
+    "Test F1": "0.7696±0.0192",
+    "Test AUROC": "0.8676±0.0118"
+  },
+  {
+    "Phase": "Phase 3",
+    "Method": "Layer Analysis (best L17)",
+    "Classifier": "LR",
+    "Feature": "L17 last hidden",
+    "Test Acc": "0.7987±0.0000",
+    "Test F1": "0.7986±0.0000",
+    "Test AUROC": "0.8878±0.0000"
+  },
+  {
+    "Phase": "Phase 3",
+    "Method": "Token Analysis (best: last)",
+    "Classifier": "LR",
+    "Feature": "L27 last token",
+    "Test Acc": "0.7433±0.0000",
+    "Test F1": "0.7433±0.0000",
+    "Test AUROC": "0.8277±0.0000"
+  },
+  {
+    "Phase": "Phase 3",
+    "Method": "Layer 17 (specific)",
+    "Classifier": "LR",
+    "Feature": "L17 last hidden",
+    "Test Acc": "0.7987±0.0000",
+    "Test F1": "0.7986±0.0000",
+    "Test AUROC": "0.8878±0.0000"
+  },
+  {
+    "Phase": "Phase 4",
+    "Method": "Hidden-only (L17 last, LR) ★ Baseline",
+    "Classifier": "LR",
+    "Feature": "L17 last hidden",
+    "Test Acc": "0.7987±0.0000",
+    "Test F1": "0.7986±0.0000",
+    "Test AUROC": "0.8878±0.0000"
+  },
+  {
+    "Phase": "Phase 4",
+    "Method": "Hidden-only (L17 last, MLP) ★ Baseline",
+    "Classifier": "MLP",
+    "Feature": "L17 last hidden",
+    "Test Acc": "0.8347±0.0106",
+    "Test F1": "0.8346±0.0106",
+    "Test AUROC": "0.9283±0.0039"
+  },
+  {
+    "Phase": "Phase 4",
+    "Method": "Attention-Guided SAPLMA",
+    "Classifier": "-",
+    "Feature": "Attention scores + hidden",
+    "Test Acc": "N/A",
+    "Test F1": "N/A",
+    "Test AUROC": "N/A"
+  }
+]

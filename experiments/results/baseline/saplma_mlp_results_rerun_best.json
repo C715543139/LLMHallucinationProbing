@@ -10,29 +10,29 @@
   ],
   "test_summary": {
     "accuracy": {
-      "mean": 0.7696777601690439,
-      "std": 0.019105273449577537
+      "mean": 0.7770734284204966,
+      "std": 0.006597990489591545
     },
     "macro_f1": {
-      "mean": 0.7696301985285801,
-      "std": 0.019179399131179872
+      "mean": 0.77689003881197,
+      "std": 0.006693653999444402
     },
     "auroc": {
-      "mean": 0.867594955360432,
-      "std": 0.011781597446717954
+      "mean": 0.8769983992713,
+      "std": 0.003570833805369484
     }
   },
   "runtime": {
     "python": "3.10.20",
-    "platform": "Windows-10-10.0.19045-SP0",
+    "platform": "Linux-6.8.0-84-generic-x86_64-with-glibc2.35",
     "torch": "2.6.0+cu124",
     "cuda_available": true,
     "cuda_version": "12.4",
-    "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "gpu_name": "NVIDIA GeForce RTX 3090",
     "transformers": "4.57.6",
     "scikit_learn": "1.7.2",
     "model_device": "cuda:0",
-    "model_dtype": "torch.float16",
-    "model_config_dtype": "torch.float16"
+    "model_dtype": "torch.bfloat16",
+    "model_config_dtype": "torch.bfloat16"
   }
 }
