@@ -6,12 +6,13 @@ LLM Hallucination Probing 命令分发入口。
     - 将具体实现转发到 scripts/commands 或 scripts/run 下的脚本
     - 原样透传命令后的附加参数，例如:
         python -s main.py phase4 --summary-only
-        python -s main.py phase4 --use-cache --cache-dir experiments/results/phase4/1
+        python -s main.py phase4 --use-cache --cache-dir experiments/results/phase4/cache
 
 用法:
     python -s main.py
     python -s main.py status
     python -s main.py preprocess
+    python -s main.py check-phase1
     python -s main.py test-gpu
     python -s main.py phase2
     python -s main.py phase2-ppl
@@ -40,6 +41,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 COMMAND_MAP: dict[str, tuple[str, list[str]]] = {
     "status": ("scripts/commands/status.py", []),
     "preprocess": ("scripts/commands/preprocess.py", []),
+    "check-phase1": ("scripts/commands/check_phase1.py", []),
     "test-gpu": ("scripts/commands/test_gpu.py", []),
     "phase2": ("scripts/run/phase2.py", []),
     "phase2-ppl": ("scripts/run/phase2.py", ["ppl"]),

@@ -7,7 +7,7 @@ Phase 4 运行脚本：支持完整运行、基于缓存重跑，以及 Phase 4 
     source ./.venv/bin/activate
     python -s scripts/run/phase4.py
     python -s scripts/run/phase4.py --summary-only
-    python -s scripts/run/phase4.py --use-cache --cache-dir experiments/results/phase4/1
+    python -s scripts/run/phase4.py --use-cache --cache-dir experiments/results/phase4/cache
     python -s scripts/run/phase4.py cache-hidden
     python -s scripts/run/phase4.py hidden-baseline
     python -s scripts/run/phase4.py extract-attention-scores
