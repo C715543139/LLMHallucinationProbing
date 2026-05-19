@@ -8,7 +8,7 @@ Phase 4 一键评估：提取特征 + 运行所有消融实验 + 生成对比表
 """
 from __future__ import annotations
 
-import json, csv, sys, time, logging
+import json, csv, sys, time, logging, os
 from pathlib import Path
 import numpy as np
 
@@ -46,6 +46,8 @@ from src.utils.metrics import compute_metrics
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 
+PHASE4_DTYPE = os.environ.get("PHASE4_DTYPE", config.models.primary_dtype)
+
 # ---------- 1. Load model + data ----------
 print("=" * 60)
 print("  Phase 4 Full Evaluation")
@@ -55,10 +57,11 @@ print_device_info()
 t0 = time.time()
 model, tokenizer = load_model_fp16(
     model_path=str(config.paths.models_cache / "Qwen2-1.5B"),
+    torch_dtype=PHASE4_DTYPE,
 )
 # Set eager attention AFTER loading to avoid NaN issues
 model.set_attn_implementation("eager")
-print(f"Model loaded (eager attention) in {time.time()-t0:.0f}s")
+print(f"Model loaded (eager attention, dtype={PHASE4_DTYPE}) in {time.time()-t0:.0f}s")
 
 train_ds, val_ds, test_ds = load_processed_data()
 print(train_ds.summary())

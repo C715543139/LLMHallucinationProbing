@@ -159,7 +159,7 @@ def extract_attention_output_features_single(
                 continue
 
             # 取 last token
-            out_np = out[0].numpy().astype(np.float64)  # (seq_len, hidden_dim)
+            out_np = out[0].to(dtype=torch.float32).numpy().astype(np.float64)  # (seq_len, hidden_dim)
             if pooling == "last":
                 vec = out_np[last_pos]
             else:

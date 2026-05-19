@@ -220,7 +220,7 @@ def extract_attention_score_features_single(
             continue
 
         layer_attn = attentions[layer_idx][0]  # (num_heads, seq_len, seq_len)
-        layer_attn_np = layer_attn.cpu().numpy().astype(np.float64)
+        layer_attn_np = layer_attn.to(dtype=torch.float32).cpu().numpy().astype(np.float64)
 
         for head_idx in range(num_heads):
             head_attn = layer_attn_np[head_idx]

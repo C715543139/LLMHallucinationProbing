@@ -26,7 +26,12 @@ def load_eager():
     model.eval()
     # 关键：加载后切换
     model.set_attn_implementation("eager")
-    print(f"  attn_implementation = {model.config.attn_implementation}")
+    attn_impl = getattr(
+        model.config,
+        "attn_implementation",
+        getattr(model.config, "_attn_implementation", "unknown"),
+    )
+    print(f"  attn_implementation = {attn_impl}")
     return model, tokenizer
 
 def check_nan(tensor, name):
