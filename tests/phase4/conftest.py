@@ -21,9 +21,12 @@ def phase4_loaded_model(models_cache_dir: Path):
         pytest.skip("本地 Qwen2-1.5B 权重不存在，跳过 Phase 4 真实模型测试")
 
     model, tokenizer = load_model_fp16(model_path=str(qwen_dir))
-    # 设置 eager attention
-    if hasattr(model.config, "attn_implementation"):
+    # 通过官方 setter 切换到 eager，确保 output_attentions=True 真正生效。
+    if hasattr(model, "set_attn_implementation"):
+        model.set_attn_implementation("eager")
+    elif hasattr(model.config, "attn_implementation"):
         model.config.attn_implementation = "eager"
+
     yield model, tokenizer
 
     del model

@@ -1468,7 +1468,7 @@
       "test_macro_f1_std": 1.3597399555105182e-16,
       "test_auroc_mean": 0.9184472934472935,
       "test_auroc_std": 0.0,
-      "note": "Subset {'train': 600, 'val': 150, 'test': 150}"
+      "note": "Subset sizes: train=600, val=150, test=150"
     },
     {
       "id": "A1",
@@ -1579,6 +1579,12 @@
       "note": "Samples changed: 3"
     }
   ],
+  "correction_matrix": {
+    "n00": 130,
+    "n01": 0,
+    "n10": 0,
+    "n11": 20
+  },
   "runtime": {
     "python": "3.10.20",
     "platform": "Linux-6.8.0-84-generic-x86_64-with-glibc2.35",

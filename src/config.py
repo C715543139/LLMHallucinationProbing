@@ -54,12 +54,12 @@ class ModelConfig:
     # 主实验模型（保底路径）
     primary_name: str = "Qwen/Qwen2-1.5B"
     primary_local: str = "models_cache/Qwen2-1.5B"
-    primary_dtype: str = "float16"         # 显式固定精度，避免跨设备 auto 漂移
+    primary_dtype: str = "bfloat16"        # Linux + RTX 3090 上更稳定，避免 eager attention NaN
     primary_device_map: str = "auto"
 
     # 通用
     trust_remote_code: bool = False
-    torch_dtype_fallback: str = "float16"
+    torch_dtype_fallback: str = "bfloat16"
 
 
 @dataclass

@@ -23,6 +23,15 @@ from src.utils.feature_cache import save_npz_cache
 logger = logging.getLogger(__name__)
 
 
+def _get_attention_implementation(model) -> str | None:
+    """读取模型当前 attention 实现。"""
+    return getattr(
+        model.config,
+        "attn_implementation",
+        getattr(model.config, "_attn_implementation", None),
+    )
+
+
 def _compute_attention_entropy(attn_vector: np.ndarray, eps: float = 1e-10) -> float:
     """计算注意力分布的熵。"""
     v = np.asarray(attn_vector, dtype=np.float64)
@@ -59,6 +68,11 @@ def _extract_attention_features_single_head(
     """
     n = min(seq_len, attn_matrix.shape[0])
     last_attn = attn_matrix[n - 1, :n].copy()  # last token 对所有 token 的注意力
+    last_attn_total = float(np.sum(last_attn))
+    if last_attn_total > 0:
+        last_attn_norm = last_attn / last_attn_total
+    else:
+        last_attn_norm = np.zeros_like(last_attn)
 
     subj_idx = [i for i in anchor.subject_token_indices if i < n]
     rel_idx = [i for i in anchor.relation_token_indices if i < n]
@@ -74,16 +88,16 @@ def _extract_attention_features_single_head(
     features["last_to_tail_mass"] = _compute_mass(last_attn, tail_idx)
     features["last_to_anchor_mass"] = _compute_mass(last_attn, anchor_idx)
     features["last_to_non_anchor_mass"] = _compute_mass(last_attn, non_anchor_idx)
-    features["attention_entropy_last"] = _compute_attention_entropy(last_attn)
-    features["max_attention_last"] = float(np.max(last_attn))
+    features["attention_entropy_last"] = _compute_attention_entropy(last_attn_norm)
+    features["max_attention_last"] = float(np.max(last_attn_norm))
 
     # top-3 attention mass
-    top3_idx = np.argsort(last_attn)[-3:]
-    features["top3_attention_mass_last"] = float(np.sum(last_attn[top3_idx]))
+    top3_idx = np.argsort(last_attn_norm)[-3:]
+    features["top3_attention_mass_last"] = float(np.sum(last_attn_norm[top3_idx]))
 
     # attention sink: 前几个 token 的注意力质量
     sink_n = min(4, n)
-    features["attention_sink_mass"] = float(np.sum(last_attn[:sink_n]))
+    features["attention_sink_mass"] = float(np.sum(last_attn_norm[:sink_n]))
 
     # 归一化特征（除以 anchor token 数量）
     for name, idx_list in [
@@ -199,6 +213,14 @@ def extract_attention_score_features_single(
 
     # outputs.attentions: tuple of (batch, num_heads, seq_len, seq_len) per layer
     attentions = outputs.attentions
+    if attentions is None:
+        attn_impl = _get_attention_implementation(model)
+        raise RuntimeError(
+            "output_attentions=True 未返回 attention 权重。"
+            f"当前 attn_implementation={attn_impl!r}，"
+            "请先调用 model.set_attn_implementation('eager')。"
+        )
+
     # 确保长度匹配
     if len(attentions) != model.config.num_hidden_layers:
         logger.warning(

@@ -1,9 +1,13 @@
 """
-Phase 2 实验运行脚本
+Phase 2 主运行脚本：执行 PPL 基线与 SAPLMA 基线，并将结果写入 experiments/results/baseline。
+
 用法:
-    .\.venv\Scripts\python.exe -s scripts/run_phase2.py
-    .\.venv\Scripts\python.exe -s scripts/run_phase2.py --ppl-only
-    .\.venv\Scripts\python.exe -s scripts/run_phase2.py --saplma-only
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda activate llm_hallucination
+    source ./.venv/bin/activate
+    python -s scripts/run_phase2.py
+    python -s scripts/run_phase2.py --ppl-only
+    python -s scripts/run_phase2.py --saplma-only
 """
 import sys
 import os
@@ -35,9 +39,13 @@ logger = logging.getLogger("phase2")
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--ppl-only", action="store_true")
-    parser.add_argument("--saplma-only", action="store_true")
+    parser = argparse.ArgumentParser(
+        description="运行 Phase 2 基线实验并保存结果。",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--ppl-only", action="store_true", help="仅运行 PPL 基线")
+    group.add_argument("--saplma-only", action="store_true", help="仅运行 SAPLMA 基线")
     args = parser.parse_args()
 
     run_ppl = not args.saplma_only
