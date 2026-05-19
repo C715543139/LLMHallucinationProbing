@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
 
 # 注意: transformers 必须在 torch 之前导入，
-# 否则在 Windows + CUDA 12.4 环境下可能触发 ACCESS VIOLATION。
+# 否则在部分 CUDA 环境下可能触发底层初始化异常。
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,

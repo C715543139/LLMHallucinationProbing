@@ -14,10 +14,10 @@
 
 ### 1.2 实验模型与数据
 
-| 项       | 选择               | 说明                                                                                    |
-| -------- | ------------------ | --------------------------------------------------------------------------------------- |
-| 实验模型 | Qwen2-1.5B（FP16） | 在 Windows + 8GB 显存环境下稳定运行，可完整完成课程要求                                 |
-| 数据集   | True-False Dataset | 6 个子领域：Cities, Inventions, Chemical Elements, Animals, Companies, Scientific Facts |
+| 项       | 选择                                     | 说明                                                                                                                           |
+| -------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 实验模型 | Qwen2-1.5B（当前稳定路径：bfloat16 + eager） | 当前主实验环境为 Linux + RTX 3090；Phase 2 / 3 历史结果包含 float16 路径，Phase 4 复跑与默认配置已切换为 bfloat16 以避免 eager attention NaN |
+| 数据集   | True-False Dataset                       | 当前有效样本数为 6309，固定划分为 train=5047、val=631、test=631；主要覆盖 Cities、Inventions、Chemical Elements、Animals、Companies、Scientific Facts |
 
 ### 1.3 实验协议
 
@@ -27,24 +27,27 @@
 - **集合职责**：训练集用于分类器训练；验证集仅用于阈值调优、模型选择和早停；测试集仅用于最终一次性能汇报与主结果图表生成，避免将调参结果误写为最终结果
 - **随机种子**：所有分类实验固定随机种子（默认 42），建议在 3 个随机种子（42, 123, 2024）下重复实验，报告均值与标准差
 - **种子约定**：数据划分使用固定 split seed（建议 42）一次生成并全程复用；42、123、2024 这 3 个随机种子仅用于分类器训练与阈值调优过程中的随机性控制，不重新划分数据集
-- **运行时确定性**：最终基线与后续分析实验默认显式使用 float16 加载模型，不依赖 auto dtype；实验前固定 Python / NumPy / PyTorch 随机种子，关闭 cudnn benchmark，并启用 deterministic algorithms（warn_only 模式）
+- **运行时确定性**：所有实验默认显式指定 torch dtype，不依赖 auto dtype；当前主配置为 bfloat16，且在需要 `output_attentions=True` 的 Phase 4 路径中固定使用 eager attention；实验前固定 Python / NumPy / PyTorch 随机种子，关闭 cudnn benchmark，并启用 deterministic algorithms（warn_only 模式）
 - **结果归档约定**：结果摘要文件需记录阈值优化指标、随机种子与关键运行环境信息（如 Python、PyTorch、Transformers、CUDA、GPU、模型 dtype），便于跨设备对账与复现
 - **分析使用边界**：若层深度分析或 token 位置分析的结论将用于后续方法选择（如 Phase 3 指导 Phase 4 的特征选取），则该选择过程仅基于训练集与验证集完成；测试集只用于固定方案后的最终结果汇报，避免隐性数据泄漏
 - **统一指标**：Accuracy、Macro-F1 与 AUROC，确保不同方法之间可比
 - **层分析约定**：层分析统一以 Transformer block 输出为统计对象，不将 embedding output 计入层号；层索引通过 `model.config.num_hidden_layers` 动态获取，不硬编码具体数值
 - **Subject token 提取**：若实验中需要定位主语实体，优先使用依存句法或 noun chunk 规则抽取句首主语短语；对于能够稳定识别的命名实体样本，可辅以 NER 工具（如 spaCy）做对齐检查。若自动解析不可靠，则退化为手工规则，并仅在报告中标注结果。Subject token 分析作为可选项，保底至少比较 First token、Last token 与 Mean pooling
 
-### 1.4 当前实现同步（截至 2026-05-16）
+### 1.4 当前实现同步（截至 2026-05-19）
 
 结合当前工作区中的真实代码与目录结构，项目当前状态如下：
 
 - **Phase 1 已完成**：环境、配置、数据加载/预处理、模型加载与 Phase 1 测试均已落地
 - **Phase 2 已完成**：PPL 与 SAPLMA 两类基线方法已实现，并完成 `tests/phase2/` 自动化测试
-- **Phase 2 复现性修正已完成**：当前代码已显式固定 float16、随机种子与确定性运行选项，并支持在结果摘要中记录 seeds / runtime 等关键信息
+- **Phase 2 复现性修正已完成**：当前代码已显式固定随机种子与确定性运行选项，并支持在结果摘要中记录 seeds / runtime 等关键信息
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
-- **Phase 4 尚未开始实现**：注意力特征、FFN 特征与进阶方法模块尚未在 `src/` 中落地；后续实验默认可沿用 Phase 3 已验证的复现协议，并优先参考 `layer 17 + last` 的观察结果
-- **里程碑文档已整合**：M1 与 M2 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
+- **Phase 4 已完成核心实现与复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地，结果已写入 `experiments/results/phase4/` 与 `docs/对比结果.md`
+- **数值稳定路径已切换**：Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；当前默认稳定路径为 `bfloat16 + eager attention`，并已在 `src/config.py` 中作为主配置同步
+- **CLI 与脚本结构已收敛**：`main.py` 已改为纯命令分发器；通用命令位于 `scripts/commands/`，阶段运行脚本位于 `scripts/run/`
+- **项目主体实验已基本完成**：当前剩余工作主要集中在 README / 计划文档等工程与文档收尾，而不是 Phase 2-4 主体实验逻辑补齐
+- **里程碑文档已整合**：M1-M4 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
 
 ---
 
@@ -54,36 +57,35 @@
 
 | 组件      | 规格                                 |
 | --------- | ------------------------------------ |
-| 操作系统  | Windows 10 (原生)                    |
-| GPU       | NVIDIA RTX 4060 Laptop (8GB VRAM)    |
-| CUDA 版本 | 12.4 (推荐)                          |
+| 操作系统  | Linux                                |
+| GPU       | NVIDIA GeForce RTX 3090 (24GB VRAM)  |
+| CUDA 版本 | 12.4                                 |
 | 内存      | ≥16GB RAM                            |
 | 磁盘      | ≥50GB 可用空间（模型下载约 15-20GB） |
 
 ### 2.2 显存预算分析
 
-| 模型       | 精度          | 显存占用 | 是否可运行                            |
-| ---------- | ------------- | -------- | ------------------------------------- |
-| Qwen2-1.5B | FP16          | ~3 GB    | 完全可运行                            |
-| Qwen2-1.5B | FP16 (含梯度) | ~6 GB    | 适合小 batch 的特征提取或参数高效实验 |
+| 模型       | 精度                | 显存占用 | 是否可运行                                  |
+| ---------- | ------------------- | -------- | ------------------------------------------- |
+| Qwen2-1.5B | bfloat16 + eager    | ~3-4 GB  | 当前稳定主路径，可用于 Phase 4 attention 特征提取 |
+| Qwen2-1.5B | float16 + eager     | ~3 GB    | 当前环境下前向可能产生 NaN，不建议用于 Phase 4 |
+| Qwen2-1.5B | bfloat16 (含缓存提取) | ~6 GB    | 适合小 batch 的 hidden / attention 特征缓存提取 |
 
-**结论**：Qwen2-1.5B FP16 在 8GB 显存下完全可运行，可直接支持小 batch 的特征提取与参数高效实验。
+**结论**：Qwen2-1.5B 在当前 Linux + RTX 3090 环境下运行余量充足，但为保证注意力权重与中间激活数值稳定，Phase 4 主路径应固定为 `bfloat16 + eager attention`。
 
 ### 2.3 软件环境
 
 | 工具              | 版本             | 用途                             |
 | ----------------- | ---------------- | -------------------------------- |
-| Python            | 3.10 / 3.11      | 主编程语言                       |
-| Conda (Miniconda) | latest           | Python 版本管理                  |
-| uv                | latest           | Python 包管理（替代 pip）        |
-| PyTorch           | 2.4+ (CUDA 12.4) | 深度学习框架                     |
-| Transformers      | 4.44+            | 模型加载与推理                   |
-| PEFT / Accelerate | latest           | 高效推理                         |
-| scikit-learn      | 1.5+             | 分类器训练                       |
+| Python            | 3.10.20          | 主编程语言                       |
+| Conda             | `llm_hallucination` 环境 | Python 版本与依赖隔离           |
+| uv                | 项目 `.venv`     | Python 包管理与虚拟环境          |
+| PyTorch           | 2.6.0+cu124      | 深度学习框架                     |
+| Transformers      | 4.57.6           | 模型加载与推理                   |
+| scikit-learn      | 1.7.2            | 分类器训练                       |
 | spaCy             | optional         | Subject token 自动抽取的可选依赖 |
-| wandb             | latest           | 实验跟踪（可选）                 |
-| pytest            | 8.0+             | 单元测试与集成测试框架           |
-| pytest-cov        | 5.0+             | 测试覆盖率统计                   |
+| pytest            | 8.x              | 单元测试与集成测试框架           |
+| pytest-cov        | 5.x              | 测试覆盖率统计                   |
 
 > **复现约定**：软件环境表中的版本范围用于说明依赖原则；实际提交与复现实验时，以 `pyproject.toml` 与 `uv.lock` 中维护的项目依赖配置为准。
 
@@ -97,8 +99,10 @@
 LLMHallucinationProbing/
 ├── docs/
 │   ├── Project_Plan.md
+│   ├── Phase4_From_Phase3_Development_Guide.md
 │   ├── Proposal.md
 │   ├── Report.md
+│   ├── 对比结果.md
 │   ├── 利用大语言模型内部状态进行幻觉检测.md
 │   └── revision/
 │       └── Project_Plan_review_v*.md
@@ -122,12 +126,22 @@ LLMHallucinationProbing/
 │       │   ├── layer_analysis_logistic_last.json
 │       │   ├── token_accuracy_comparison.png
 │       │   └── token_analysis_logistic_last_layer.json
-│       └── baseline/
-│           ├── phase2_run.log
-│           ├── ppl_results.json
-│           ├── saplma_logistic_results.json
-│           ├── saplma_mlp_results.json
-│           └── saplma_mlp_results_rerun_best.json
+│       ├── baseline/
+│       │   ├── phase2_run.log
+│       │   ├── ppl_results.json
+│       │   ├── saplma_logistic_results.json
+│       │   ├── saplma_mlp_results.json
+│       │   └── saplma_mlp_results_rerun_best.json
+│       └── phase4/
+│           ├── cache/
+│           ├── figures/
+│           ├── hidden_baseline.json
+│           ├── attention_head_selection.json
+│           ├── attention_score_feature_summary.csv
+│           ├── attention_output_feature_summary.csv
+│           ├── phase4_ablation_results.json
+│           ├── phase4_error_analysis.csv
+│           └── phase4_main_results.csv
 ├── models_cache/
 │   └── Qwen2-1.5B/
 │       ├── config.json
@@ -135,28 +149,42 @@ LLMHallucinationProbing/
 │       ├── tokenizer_config.json
 │       └── model.safetensors
 ├── scripts/
-│   ├── check_phase1.ps1
-│   ├── run_phase2.py
-│   └── run_phase2_simple.py
+│   ├── diagnose_eager.py
+│   ├── show_results.py
+│   ├── commands/
+│   │   ├── check_phase1.py
+│   │   ├── preprocess.py
+│   │   ├── status.py
+│   │   └── test_gpu.py
+│   └── run/
+│       ├── phase2.py
+│       ├── phase3.py
+│       └── phase4.py
 ├── src/
+│   ├── analysis/
+│   │   ├── __init__.py
+│   │   ├── layer_analysis.py
+│   │   ├── phase4_analysis.py
+│   │   ├── token_analysis.py
+│   │   └── visualization.py
 │   ├── config.py
 │   ├── data/
 │   │   ├── dataset.py
 │   │   └── preprocessing.py
-│   ├── models/
-│   │   └── loader.py
+│   ├── features/
+│   │   ├── anchor_extraction.py
+│   │   ├── attention_outputs.py
+│   │   ├── attention_scores.py
+│   │   └── hidden_states.py
 │   ├── methods/
+│   │   ├── phase4_attention.py
 │   │   ├── probability.py
 │   │   └── saplma.py
-│   ├── features/
-│   │   └── hidden_states.py
-│   ├── analysis/
-│   │   ├── __init__.py
-│   │   ├── layer_analysis.py
-│   │   ├── token_analysis.py
-│   │   └── visualization.py
+│   ├── models/
+│   │   └── loader.py
 │   └── utils/
 │       ├── __init__.py
+│       ├── feature_cache.py
 │       ├── metrics.py
 │       └── reproducibility.py
 ├── tests/
@@ -166,16 +194,26 @@ LLMHallucinationProbing/
 │   │   ├── test_data.py
 │   │   └── test_model.py
 │   ├── phase2/
-│       ├── conftest.py
-│       ├── test_probability.py
-│       ├── test_hidden_states.py
-│       └── test_saplma.py
-│   └── phase3/
+│   │   ├── __init__.py
+│   │   ├── conftest.py
+│   │   ├── test_hidden_states.py
+│   │   ├── test_probability.py
+│   │   └── test_saplma.py
+│   ├── phase3/
+│   │   ├── __init__.py
+│   │   ├── conftest.py
+│   │   ├── test_layer_analysis.py
+│   │   ├── test_token_analysis.py
+│   │   └── test_visualization.py
+│   └── phase4/
 │       ├── __init__.py
 │       ├── conftest.py
-│       ├── test_layer_analysis.py
-│       ├── test_token_analysis.py
-│       └── test_visualization.py
+│       ├── test_anchor_extraction.py
+│       ├── test_attention_debias.py
+│       ├── test_attention_outputs.py
+│       ├── test_attention_scores.py
+│       ├── test_head_selection.py
+│       └── test_phase4_pipeline.py
 ├── main.py
 ├── pyproject.toml
 ├── uv.lock
@@ -186,26 +224,33 @@ LLMHallucinationProbing/
 
 #### 已实现
 
-- `src/config.py`：全局配置与路径/模型/训练超参数、确定性选项管理
+- `src/config.py`：全局配置与路径/模型/训练超参数、确定性选项管理；当前默认 dtype 已切换为 `bfloat16`
 - `src/data/dataset.py`：原始 CSV 加载、`TrueFalseDataset`、`.pt` 序列化
 - `src/data/preprocessing.py`：分层划分与预处理流水线
-- `src/models/loader.py`：Qwen2-1.5B 加载、GPU 信息查询与显式 float16 加载
+- `src/models/loader.py`：Qwen2-1.5B 加载、GPU 信息查询与显式 dtype / eager attention 路径支持
 - `src/methods/probability.py`：PPL 打分、阈值调优、PPL 方法评估
 - `src/features/hidden_states.py`：最后 token 特征提取、批量/全层隐藏状态提取
 - `src/methods/saplma.py`：逻辑回归 / MLP 分类器训练、预测与完整 SAPLMA 实验
 - `src/analysis/layer_analysis.py`：逐层隐藏状态分析与层性能曲线提取
 - `src/analysis/token_analysis.py`：不同 token pooling 策略分析
 - `src/analysis/visualization.py`：层曲线、token 对比图和方法对比图生成
+- `src/features/anchor_extraction.py`：陈述句 subject / relation / tail anchor 抽取与 token 对齐
+- `src/features/attention_scores.py`：layer / head 级 attention score 特征提取与归一化统计
+- `src/features/attention_outputs.py`：attention output activation 统计特征提取
+- `src/methods/phase4_attention.py`：hidden baseline、去长度偏置、head selection、gated fusion 与统一消融评估
+- `src/analysis/phase4_analysis.py`：Phase 4 可视化与 correction matrix 图表生成
+- `src/utils/feature_cache.py`：特征缓存读写与 metadata 管理
 - `src/utils/metrics.py`：Accuracy、Macro-F1、AUROC、阈值搜索等评估逻辑
 - `src/utils/reproducibility.py`：随机种子、确定性运行与环境信息记录
-- `main.py`：状态检查、预处理、Phase 2 / Phase 3 运行入口
+- `scripts/commands/*.py`：状态检查、预处理、GPU/模型验证等通用命令脚本
+- `scripts/run/*.py`：Phase 2 / Phase 3 / Phase 4 阶段运行脚本
+- `main.py`：纯 CLI 分发器，负责将命令转发到 `scripts/commands/` 与 `scripts/run/`
 
 #### 计划中但尚未实现
 
-- `src/features/attention.py`
 - `src/features/ffn_activations.py`
-- `src/methods/advanced.py`
-- 计划中的 `experiments/configs/*.yaml` 与 `scripts/run_analysis.ps1`、`scripts/run_advanced.ps1`
+- 面向 FFN / MoE / DLLM 的扩展分析路径
+- 计划草案中的 `experiments/configs/*.yaml` 未作为当前主线方案落地，实际运行入口已由 `scripts/` 下脚本统一承接
 
 ---
 
@@ -213,7 +258,7 @@ LLMHallucinationProbing/
 
 ### 4.1 安装 Conda
 
-```powershell
+```bash
 # 1. 安装 Miniconda（如未安装）
 # 下载地址: https://docs.conda.io/en/latest/miniconda.html
 # 安装完成后重启终端
@@ -224,7 +269,7 @@ conda --version
 
 ### 4.2 创建 Conda 环境
 
-```powershell
+```bash
 # 创建 Python 3.10 环境
 conda create -n llm_hallucination python=3.10 -y
 conda activate llm_hallucination
@@ -234,7 +279,7 @@ conda activate llm_hallucination
 
 > **说明**：所有依赖已预先写入 `pyproject.toml`（含 CUDA 版 PyTorch 源），只需以下两步即可完成环境搭建。`uv add` 无需手动执行。
 
-```powershell
+```bash
 # 在 Conda 环境中安装 uv
 python -m pip install uv
 
@@ -242,7 +287,7 @@ python -m pip install uv
 uv sync
 
 # 激活 uv 环境
-.\.venv\Scripts\activate.ps1
+source ./.venv/bin/activate
 ```
 
 > **依赖清单**（由 `pyproject.toml` 统一管理，无需手动安装）：
@@ -262,47 +307,48 @@ uv sync
 
 > ⚠️ **重要**：后续所有命令执行前，必须依次激活两个环境：
 >
-> ```powershell
+> ```bash
+> source "$(conda info --base)/etc/profile.d/conda.sh"
 > conda activate llm_hallucination
-> .\.venv\Scripts\activate.ps1
+> source ./.venv/bin/activate
 > ```
 >
 > 未激活环境将导致 `python` 指向错误的解释器，或缺少必要的依赖包。
 
 ### 4.4 下载模型
 
-```powershell
-# Qwen2-1.5B（FP16 直接可用，无需量化）
+```bash
+# 推荐在 Linux 环境下先启用镜像
+export HF_ENDPOINT=https://hf-mirror.com
+
+# Qwen2-1.5B 当前统一下载到项目本地缓存目录
 hf download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
 ```
 
 > **当前实现同步**：当前工作区中已存在 `models_cache/Qwen2-1.5B/`，包括 `config.json`、`tokenizer.json`、`tokenizer_config.json` 与 `model.safetensors` 等核心文件。若仅复现实验，可优先检查本地缓存是否已齐全，再决定是否重新下载。
 
-> **Windows 端注意事项**：
+> **Linux 端注意事项**：
 >
-> - 模型缓存默认在 `C:\Users\<username>\.cache\huggingface\`，可能占用 C 盘空间
-> - 建议使用以下 PowerShell 命令将缓存重定向到项目盘（当前终端会话生效）：
+> - 如需统一缓存目录，可在当前 shell 中设置：
 >
-> ```powershell
-> $env:HF_HOME = "F:\PythonCodes\LLMHallucinationProbing\models_cache"
+> ```bash
+> export HF_HOME="$PWD/models_cache"
 > ```
 >
-> - 若无法访问 HuggingFace，可使用镜像加速：
+> - 如无法直连 HuggingFace，优先使用镜像：
 >
-> ```powershell
-> $env:HF_ENDPOINT = "https://hf-mirror.com"
+> ```bash
+> export HF_ENDPOINT=https://hf-mirror.com
 > ```
->
-> - 如需持久化环境变量，请通过系统环境变量设置界面或 `setx` 命令完成
 
 ### 4.5 数据下载
 
 从论文 [The Internal State of an LLM Knows When It's Lying](https://arxiv.org/pdf/2304.13734) 官方仓库获取 True-False Dataset：
 
-```powershell
+```bash
 # 下载数据集到 data/raw/
-# 具体下载地址为
-http://azariaa.com/Content/Datasets/true-false-dataset.zip
+wget -O /tmp/true-false-dataset.zip http://azariaa.com/Content/Datasets/true-false-dataset.zip
+unzip -o /tmp/true-false-dataset.zip -d data/raw/
 ```
 
 > **当前实现同步**：当前工作区中的 `data/raw/` 已实际采用 CSV 组织形式，文件名为：
@@ -335,14 +381,14 @@ http://azariaa.com/Content/Datasets/true-false-dataset.zip
 | P1.6 | 实现模型加载模块 `src/models/loader.py` | 支持 FP16 的模型加载器                      | A          |
 | P1.7 | 划分 train/val/test 并预处理            | `data/processed/`                           | B          |
 | P1.8 | 搭建全局配置文件 `src/config.py`        | 统一配置入口                                | A          |
-| P1.9 | 编写 Phase 1 验证测试，运行并报告结果   | `tests/phase1/`，`scripts/check_phase1.ps1` | A+B        |
+| P1.9 | 编写 Phase 1 验证测试，运行并报告结果   | `tests/phase1/`，`scripts/commands/check_phase1.py` | A+B        |
 
 **里程碑 M1**: 能够在 GPU 上成功加载目标模型，并对单条陈述语句完成一次完整的前向传播，输出 hidden states。
 
 **当前同步结果**：
 
 - `src/config.py`、`src/data/dataset.py`、`src/data/preprocessing.py`、`src/models/loader.py` 已实现
-- `tests/phase1/` 与 `scripts/check_phase1.ps1` 已建立
+- `tests/phase1/` 与 `scripts/commands/check_phase1.py` 已建立
 - `data/processed/train.pt`、`val.pt`、`test.pt` 已生成
 - Phase 1 的阶段性记录已同步整合到本节下方，不再单独保留里程碑文档
 
@@ -360,7 +406,7 @@ http://azariaa.com/Content/Datasets/true-false-dataset.zip
 
 - 已建立项目根目录与 `src/`、`tests/`、`scripts/` 等工程结构
 - 已配置 Python 项目依赖管理文件：`pyproject.toml`、`uv.lock`
-- 已建立统一测试入口与 Phase 1 验证脚本：`tests/phase1/`、`scripts/check_phase1.ps1`
+- 已建立统一测试入口与 Phase 1 验证脚本：`tests/phase1/`、`scripts/commands/check_phase1.py`
 
 ###### 2. 数据准备与数据集封装
 
@@ -416,7 +462,8 @@ LLMHallucinationProbing/
 │       ├── tokenizer_config.json
 │       └── model.safetensors
 ├── scripts/
-│   └── check_phase1.ps1
+│   └── commands/
+│       └── check_phase1.py
 ├── src/
 │   ├── config.py
 │   ├── data/
@@ -434,7 +481,7 @@ LLMHallucinationProbing/
 
 ##### 实践要点
 
-- **路径管理统一使用 `pathlib.Path`**：在 Windows 环境下统一使用 `Path` 对象，避免硬编码路径导致的兼容性问题
+- **路径管理统一使用 `pathlib.Path`**：统一使用 `Path` 对象，避免硬编码路径导致的平台兼容性问题
 - **数据划分强调可复现与防泄漏**：训练 / 验证 / 测试划分清晰，集合无重叠，并尽量保持真 / 假样本共存
 - **模型侧优先验证最小闭环**：先验证模型可加载、tokenizer 可用、单句前向传播成功、`hidden_states` 数量与层数一致、最后 token 表示可稳定提取
 - **测试先行为后续扩展保留接口契约**：`TrueFalseDataset` 字段结构、`.pt` 文件加载方式、模型输出 hidden states 的约定均已在 Phase 1 固定下来
@@ -516,7 +563,7 @@ def extract_last_token_hidden(model, tokenizer, statement, layer_idx=-1):
 - `src/features/hidden_states.py` 已实现最后 token 特征提取、批量提取与全层提取接口
 - `src/methods/saplma.py` 已实现 LR / MLP 分类器训练、预测与多随机种子 SAPLMA 实验
 - `src/config.py`、`src/models/loader.py` 与 `src/utils/reproducibility.py` 已补充显式 float16、全局随机种子与确定性运行设置
-- `main.py` 已提供 `phase2`、`phase2-ppl`、`phase2-saplma` 运行入口
+- `scripts/run/phase2.py` 已作为 Phase 2 主脚本落地，`main.py` 通过分发器提供 `phase2`、`phase2-ppl`、`phase2-saplma` 兼容入口
 - `experiments/results/baseline/` 已存在 Phase 2 结果文件：`ppl_results.json`、`saplma_logistic_results.json`、`saplma_mlp_results.json`（历史本地结果）与 `saplma_mlp_results_rerun_best.json`（修改后方案重跑并在报告中采用的最终结果）
 - 新的结果摘要写盘逻辑已支持记录 `threshold_metric`、`seeds` 与 `runtime` 等复现信息
 - `tests/phase2/` 已建立并通过真实代码验证
@@ -606,7 +653,7 @@ LLMHallucinationProbing/
 - **层索引语义必须与文档一致**：层号按 Transformer block 输出统计，不把 embedding output 计入层号，并兼容含 / 不含 embedding output 的返回结构
 - **PPL 阈值方向不能反**：PPL 越低表示模型越认可该陈述，阈值搜索与评估实现必须遵守这一方向约定
 - **测试不仅验证接口存在，还验证边界**：需要同时覆盖 dummy model、真实模型、批量与单样本逻辑、返回维度稳定性、异常路径与合理退化逻辑
-- **延迟导入降低环境噪声影响**：按需导入可减少 Windows 环境下原生依赖初始化带来的额外干扰
+- **延迟导入降低环境噪声影响**：按需导入可减少底层依赖初始化带来的额外干扰
 - **复现实验要显式约束运行条件**：为减小跨设备漂移，Phase 2 最终代码路径已固定 float16、随机种子与确定性运行选项；后续 Phase 3 / Phase 4 建议沿用同一约定
 
 ##### M2 达成情况总结
@@ -667,7 +714,7 @@ LLMHallucinationProbing/
 **当前同步结果**：
 
 - `src/analysis/layer_analysis.py`、`src/analysis/token_analysis.py` 与 `src/analysis/visualization.py` 已实现
-- `main.py` 已提供 `phase3`、`phase3-layer` 与 `phase3-token` 运行入口
+- `scripts/run/phase3.py` 已作为 Phase 3 主脚本落地，`main.py` 通过分发器提供 `phase3`、`phase3-layer` 与 `phase3-token` 兼容入口
 - `tests/phase3/` 已建立，对层分析、token 分析、可视化接口和小规模真实模型路径进行验收
 - `experiments/results/analysis/` 已生成 `layer_analysis_logistic_last.json`、`token_analysis_logistic_last_layer.json`、`layer_accuracy_curve.png` 与 `token_accuracy_comparison.png`
 - 当前已观察到的最佳层为 `layer 17`，在 `last` token + logistic 配置下测试集 Accuracy 为 0.7987、Macro-F1 为 0.7986、AUROC 为 0.8878
@@ -678,79 +725,66 @@ LLMHallucinationProbing/
 
 ---
 
-### Phase 4：进阶方法探索（5-6 天）| 5.29 – 6.4 ｜**当前状态：待实现**
+### Phase 4：进阶方法探索（5-6 天）| 5.29 – 6.4 ｜**当前状态：已完成核心实验与实现**
 
-从以下方向中选择 1-2 个深入研究：
+本轮实际采用的是 **基于注意力的进阶路线**，而不是并行推进 FFN / MoE / DLLM 多条支线。Phase 4 以 Phase 3 已确认的 `layer 17 + last token + logistic` hidden baseline 为起点，围绕陈述句内部的实体-关系结构构建 attention score / output 特征，并完成系统消融与错误分析。
 
-#### 方向 A：基于注意力模式的幻觉检测
+| 编号 | 任务 | 输出物 | 当前状态 |
+| ---- | ---- | ------ | -------- |
+| P4.1 | 固定 Phase 3 hidden-only 基线并缓存 hidden features | `hidden_baseline.json`、`cache/hidden_layer17_last_*.npz` | 已完成 |
+| P4.2 | 实现陈述句 anchor 抽取与 token 对齐 | `src/features/anchor_extraction.py` | 已完成 |
+| P4.3 | 提取 layer / head 级 attention score 特征并做去长度偏置 | `src/features/attention_scores.py`、`src/methods/phase4_attention.py` | 已完成 |
+| P4.4 | 基于验证集执行 layer / head selection | `attention_head_selection.json` | 已完成 |
+| P4.5 | 提取 attention output activation 统计特征 | `src/features/attention_outputs.py` | 已完成 |
+| P4.6 | 训练融合分类器并完成 A0-A9 消融实验 | `phase4_ablation_results.json`、`phase4_main_results.csv` | 已完成 |
+| P4.7 | 生成图表、错误分析并同步文档结果 | `phase4_error_analysis.csv`、`figures/`、`docs/对比结果.md` | 已完成 |
 
-**动机**：真实陈述中，模型对关键实体的注意力更集中；虚假陈述中注意力可能分散。
+**核心技术细节**：
 
-> **数据适配说明**：True-False Dataset 的基础输入是陈述句，不天然具有 query-answer 结构。因此优先以陈述句内部的实体-关系注意力特征为主（主语 token、关系词 token、句尾 token 之间的注意力统计）。如需使用 query-answer attention 设计，将额外引入问答型数据集，并通过统一提示模板生成 answer 后再计算注意力特征。
->
-> **关系词 token 提取规则**：在注意力实验中，优先使用依存句法解析得到与主语实体对应的核心谓词或系词短语作为关系词 span；若自动解析失败，则退化为主语后第一个核心动词（或系表结构）；若规则仍不稳定，则仅保留主语实体与句尾 token 的注意力特征，并在报告中说明退化比例。
+#### P4.1 Hidden baseline 与稳定运行路径
 
-| 编号  | 任务                                                               | 输出物             |
-| ----- | ------------------------------------------------------------------ | ------------------ |
-| P4.A1 | 提取各层注意力权重矩阵                                             | attention maps     |
-| P4.A2 | 计算主语实体 token、关系词 token 与句尾 token 之间的注意力统计特征 | attention features |
-| P4.A3 | 分析真实/虚假陈述的注意力模式差异                                  | 可视化热力图       |
-| P4.A4 | 结合注意力特征 + 隐藏状态训练增强分类器                            | 改进对比结果       |
-| P4.A5 | 消融实验：注意力特征独立 vs 组合的增益                             | 消融分析           |
+- Phase 4 不再重新选择 hidden 读出方式，而是直接固定 Phase 3 已验证的最佳配置：`layer 17 + last token + logistic regression`
+- 全量数据集 baseline 继续使用固定划分 `5047 / 631 / 631`，并保留 3 个 seeds：`42 / 123 / 2024`
+- 注意力实验支路为了控制计算成本，实际采用 `600 / 150 / 150` 子集进行 score / output 特征提取和融合消融；全量 hidden baseline 作为主参考对照保留
+- 当前 Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；因此 Phase 4 默认稳定路径已切换为 `bfloat16 + eager attention`
 
-**特征工程**：
+#### P4.2 陈述句 anchor 与 attention score 特征
 
-```python
-# 注意力相关特征（适配陈述句格式）
-attention_features = {
-    "attn_concentration": entropy(attention_weights),       # 注意力集中度（熵越低越集中）
-    "entity_attn_ratio": attn_to_entity / attn_total,       # 对主语实体的关注比例
-    "relation_attn_ratio": attn_to_relation / attn_total,   # 对关系词 token 的关注比例
-    "tail_attn_ratio": attn_to_tail / attn_total,           # 对句尾 token 的关注比例
-    "cross_head_agreement": mean_head_cosine_similarity,    # 多头注意力一致性
-    "attn_entropy_per_layer": [h_i for h_i in entropies],   # 逐层注意力熵
-}
-```
+- True-False Dataset 的输入是陈述句而非问答对，因此实际实现采用 `subject / relation / tail / last token` 四类 anchor，而不是 query-answer attention 方案
+- `src/features/anchor_extraction.py` 使用规则抽取与 tokenizer offset 对齐，统一输出 token-level anchors，并记录 fallback 情况
+- `src/features/attention_scores.py` 在候选层 `13-20` 上提取 layer / head 级 attention score 特征，核心统计包括：
+    - `last_to_subject / relation / tail / anchor mass`
+    - `attention_entropy_last`、`max_attention_last`、`top3_attention_mass_last`
+    - `attention_sink_mass`
+    - `subject_to_relation`、`relation_to_tail` 等 token-to-token 结构特征
+- 为避免 `top3_attention_mass_last > 1` 这类数值问题，当前实现会先对最后一个 query token 的注意力向量归一化，再计算 entropy / max / top-k / sink 等统计量
 
-#### 方向 B：基于 FFN 知识激活的幻觉检测
+#### P4.3 去长度偏置与 head selection
 
-**动机**：FFN 存储事实知识；虚假陈述可能激活较少或不同的知识神经元。
+- attention 特征默认不直接拼接句长与 anchor 数量元信息，而是通过 `residualize_by_length` 在 train set 上拟合长度残差化，再将变换应用到 val / test，避免数据泄漏
+- head selection 按 head 分组在验证集上以 AUROC 排序，当前主实验固定选择 top-16 heads，再将选中 head 的 attention score 子特征用于融合
+- 当前复跑中，最强单 head 来自 `L16-H05`，验证集 AUROC 为 `0.6776`；说明 head selection 已从旧的噪声状态转为可解释的弱监督筛选信号
 
-| 编号  | 任务                                 | 输出物                 |
-| ----- | ------------------------------------ | ---------------------- |
-| P4.B1 | 提取各层 FFN 中间激活值              | FFN activation vectors |
-| P4.B2 | 计算 Knowledge Entropy（知识熵）特征 | 知识熵曲线             |
-| P4.B3 | 分析真实/虚假陈述的 FFN 激活模式差异 | 对比分析               |
-| P4.B4 | 结合 FFN 特征训练增强分类器          | 改进对比结果           |
+#### P4.4 Attention output、融合策略与可视化
 
-**特征工程**：
+- 除 attention score 外，Phase 4 还提取 attention module output activation 的统计特征，作为对 hidden baseline 的补充内部信号
+- 最终统一比较 A0-A9 十组实验：hidden-only、score-only、output-only、hidden+score、hidden+top-head、hidden+output、三路融合与 gated fusion
+- `src/analysis/phase4_analysis.py` 负责生成方法对比图、特征差异图与 correction matrix；错误分析结果写入 `phase4_error_analysis.csv`
+- 当前主结论是：`hidden + top-16 head attention score` 获得最佳 Accuracy / Macro-F1，而 `hidden + top-head + output` 获得最佳 AUROC；gated fusion 在本轮复跑中没有带来净纠错
 
-```python
-# FFN 相关特征
-ffn_features = {
-    "knowledge_entropy": -sum(p * log(p) for p in activation_dist),  # 知识熵
-    "sparsity": ratio_of_zero_activations,                            # 激活稀疏度
-    "top_k_activation_mean": mean(top_k_activations),                 # Top-K 平均激活
-    "layer_wise_entropy": [e_i for e_i in layer_entropies],          # 逐层知识熵
-}
-```
+**里程碑 M4**: 已完成基于注意力分数与 attention output activation 的进阶特征实现、对比实验、错误分析与图表生成，并确认 `bfloat16 + eager attention` 为当前环境下的稳定运行路径。
 
-#### 方向 C：特定架构模型分析（MoE / DLLM）
+**当前同步结果**：
 
-如果时间和算力允许，可选择此方向：
+- `src/features/anchor_extraction.py`、`attention_scores.py`、`attention_outputs.py`、`src/methods/phase4_attention.py`、`src/analysis/phase4_analysis.py` 与 `src/utils/feature_cache.py` 已全部落地
+- `scripts/run/phase4.py` 已作为 Phase 4 主脚本落地，`main.py` 通过分发器提供 `phase4`、`phase4-cache-hidden`、`phase4-hidden-baseline`、`phase4-extract-attention-scores`、`phase4-extract-attention-outputs`、`phase4-select-heads`、`phase4-ablation` 与 `phase4-visualize` 入口
+- `tests/phase4/` 已建立并通过，覆盖 anchor 抽取、attention score / output 特征、去偏、head selection 与整条 pipeline
+- `experiments/results/phase4/` 已生成 hidden baseline、head selection、feature summary、ablation results、error analysis 与 figures 等 Phase 4 产物
+- 全量 hidden baseline（A0）在当前 Linux + bfloat16 路径下达到：Test Accuracy = `0.8082`、Macro-F1 = `0.8081`、AUROC = `0.8897`
+- 子集消融中，A6 `Hidden + top-16 head attention` 取得当前最佳 Accuracy / Macro-F1：`0.8867 / 0.8865`；A8 `Hidden + top-head + output` 取得最佳 AUROC：`0.9403`
+- NaN 问题已通过切换到 `bfloat16 + eager` 实际解决；attention score / output 新缓存中的 NaN 计数为 0
 
-- 下载 OLMoE-1B-7B 或 LLADA-8B-base
-- 分析 MoE 路由模式与幻觉的关系
-- 或分析扩散语言模型 (DLLM) 的解码轨迹
-
-| 实验项        | 方法                                 | 对比基线    |
-| ------------- | ------------------------------------ | ----------- |
-| 基线 (SAPLMA) | 隐藏状态 + 逻辑回归                  | —           |
-| 改进方法      | 隐藏状态 + 注意力特征 + 逻辑回归/MLP | vs 基线     |
-| 改进方法      | 隐藏状态 + FFN 特征 + 逻辑回归/MLP   | vs 基线     |
-| 最佳组合      | 多特征融合                           | vs 单一方法 |
-
-**里程碑 M4**: 至少完成一种进阶特征的实现与对比实验（注意力或 FFN）；若性能未超过基线，也需分析失败原因、适用条件和观察到的内部模式差异。
+**结论**：Phase 4 已完成计划中的进阶方法主线探索，并形成了可复现的 attention-based 结果闭环。当前未采用的 FFN / MoE / DLLM 方向可视为后续扩展题，而不再是本项目主体实验的阻塞项。
 
 ---
 
@@ -814,9 +848,9 @@ ffn_features = {
 
 | 风险                                  | 概率 | 影响 | 对策                                                    |
 | ------------------------------------- | ---- | ---- | ------------------------------------------------------- |
-| RTX 4060 8GB 显存不足                 | 低   | 高   | Qwen2-1.5B FP16 仅需 ~3GB，余量充足；在报告中说明限制   |
+| 显存预算与 dtype 选择不当             | 中   | 高   | 当前主线固定使用 Qwen2-1.5B 与 `bfloat16 + eager`；如更换模型或精度，需重新评估显存与数值稳定性 |
 | HuggingFace 模型下载速度慢            | 高   | 中   | 使用 hf-mirror.com 镜像                                 |
-| Windows 路径兼容性问题（`\\` vs `/`） | 中   | 低   | 统一使用 `pathlib.Path`；避免硬编码路径                 |
+| 路径与脚本口径混用                    | 中   | 低   | 统一使用 `pathlib.Path`，并以 `main.py` + `scripts/` 当前入口为准，避免沿用历史脚本路径 |
 | 时间不足无法完成进阶方向              | 中   | 中   | 优先完成基础+分析任务（40分），进阶部分选择最简单的方向 |
 
 ---
