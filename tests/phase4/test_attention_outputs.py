@@ -88,10 +88,11 @@ class TestAttentionOutputExtractor:
         extractor = AttentionOutputExtractor(mock_model, [0, 1])
         extractor.register()
         assert len(extractor.handles) == 2
+        handles = list(extractor.handles)
         extractor.remove()
-        # 验证 handles 被移除
-        for h in extractor.handles:
-            assert h is not None  # 不能验证 remove 是否被调用，但 handles 列表仍在
+        for h in handles:
+            h.remove.assert_called_once()
+        assert extractor.handles == []
 
     @pytest.mark.model
     def test_hook_with_real_model(self, phase4_loaded_model):
