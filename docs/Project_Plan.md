@@ -43,7 +43,7 @@
 - **Phase 2 复现性修正已完成**：当前代码已显式固定随机种子与确定性运行选项，并支持在结果摘要中记录 seeds / runtime 等关键信息
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
-- **Phase 4 已完成核心实现与复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地，结果已写入 `experiments/results/phase4/` 与 `docs/对比结果.md`
+- **Phase 4 已完成核心实现与复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地，结果已同步写入 `experiments/results/phase4/`、`docs/Report.md` 与 `docs/Advanced_Optimization.md`
 - **数值稳定路径已切换**：Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；当前默认稳定路径为 `bfloat16 + eager attention`，并已在 `src/config.py` 中作为主配置同步
 - **CLI 与脚本结构已收敛**：`main.py` 已改为纯命令分发器；通用命令位于 `scripts/commands/`，阶段运行脚本位于 `scripts/run/`
 - **项目主体实验已基本完成**：当前剩余工作主要集中在 README / 计划文档等工程与文档收尾，而不是 Phase 2-4 主体实验逻辑补齐
@@ -99,10 +99,9 @@
 LLMHallucinationProbing/
 ├── docs/
 │   ├── Project_Plan.md
-│   ├── Phase4_From_Phase3_Development_Guide.md
+│   ├── Advanced_Optimization.md
 │   ├── Proposal.md
 │   ├── Report.md
-│   ├── 对比结果.md
 │   ├── 利用大语言模型内部状态进行幻觉检测.md
 │   └── revision/
 │       └── Project_Plan_review_v*.md
@@ -737,7 +736,7 @@ LLMHallucinationProbing/
 | P4.4 | 基于验证集执行 layer / head selection | `attention_head_selection.json` | 已完成 |
 | P4.5 | 提取 attention output activation 统计特征 | `src/features/attention_outputs.py` | 已完成 |
 | P4.6 | 训练融合分类器并完成 A0-A9 消融实验 | `phase4_ablation_results.json`、`phase4_main_results.csv` | 已完成 |
-| P4.7 | 生成图表、错误分析并同步文档结果 | `phase4_error_analysis.csv`、`figures/`、`docs/对比结果.md` | 已完成 |
+| P4.7 | 生成图表、错误分析并同步文档结果 | `phase4_error_analysis.csv`、`figures/`、`docs/Report.md`、`docs/Advanced_Optimization.md` | 已完成 |
 
 **核心技术细节**：
 
