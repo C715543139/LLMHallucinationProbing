@@ -1,0 +1,151 @@
+statement,label,hidden_prob,hidden_pred,a6_prob,a6_pred,case_type
+The crocodile is a reptile.,1,0.9952578481816056,1,0.9966408130191721,1,hidden_correct_a6_correct
+Exxon Mobil has headquarters in Switzerland.,0,1.0427506234352423e-06,0,3.9800587836164774e-07,0,hidden_correct_a6_correct
+Beryllium has the atomic number of 36.,0,0.19627675450922485,0,0.17902567114131746,0,hidden_correct_a6_correct
+The walrus has the atomic number of mollusk.,0,2.679987050510581e-06,0,1.2000899817837256e-07,0,hidden_correct_a6_correct
+Ruthenium is in the Lanthanide group.,0,0.43631580474353604,0,0.7023321728075829,1,hidden_correct_a6_wrong
+"Human uses for vulture include work, tourism, conservation.",0,0.04303086333876488,0,0.018436473230302543,0,hidden_correct_a6_correct
+The bison is the heaviest land animal in north america and forms large herds for protection.,1,0.8415058370943137,1,0.644815731198076,1,hidden_correct_a6_correct
+The porcupine has a habitat of marine.,0,0.00016522249725991702,0,0.0001907615610925526,0,hidden_correct_a6_correct
+William Congreve invented the Congreve rocket.,1,0.0014342028122166762,0,0.05463392920711326,0,hidden_wrong_a6_wrong
+Protactinium appears in its standard state as Gas.,0,0.00027415179688342035,0,0.0006243330403202549,0,hidden_correct_a6_correct
+Elihu Thomson lived in U.S.,1,0.8970552147044669,1,0.9868992007078933,1,hidden_correct_a6_correct
+Saudi Arabian Oil Company (Saudi Aramco) operates in the industry of Trading Companies.,0,0.2762436796582149,0,0.2772272238013023,0,hidden_correct_a6_correct
+Nikola Tesla lived in Austrian Empire (modern-day Croatia)/U.S.,1,1.4605444821434098e-07,0,8.374432009054405e-09,0,hidden_wrong_a6_wrong
+Cayenne is a name of a country.,0,0.013061352368564247,0,0.0026674535873352253,0,hidden_correct_a6_correct
+Italy is a name of a country.,1,0.9898793368812409,1,0.9876893254569528,1,hidden_correct_a6_correct
+El Salvador is a name of a city.,0,0.00040420964799243005,0,0.00022545181513830814,0,hidden_correct_a6_correct
+The bee is a insect.,1,0.9999402793898765,1,0.9999383378826611,1,hidden_correct_a6_correct
+Pizza is a type of food that many people enjoy.,1,0.9999999959093413,1,0.9999974071813028,1,hidden_correct_a6_correct
+The rat is a mammal.,1,0.8307918800360283,1,0.5880870016638137,1,hidden_correct_a6_correct
+U.S. Bancorp operates in the industry of banking.,1,0.9988250399002856,1,0.9989263455079336,1,hidden_correct_a6_correct
+The seagull has the atomic number of mammal.,0,2.6368424447241424e-07,0,1.5499982496458826e-09,0,hidden_correct_a6_correct
+"Human uses for kangaroo include tourism, zoos, meat.",1,0.5641175465293957,1,0.8112603105285954,1,hidden_correct_a6_correct
+Algeria is a name of a city.,0,0.0008683601888641594,0,0.001049971859642786,0,hidden_correct_a6_correct
+Intesa Sanpaolo engages in the provision of financial products and banking services..,1,0.7712751095654043,1,0.65110105044199,1,hidden_correct_a6_correct
+Abu Dhabi is a name of a country.,0,0.5353577604348052,1,0.6132068325549476,1,hidden_wrong_a6_wrong
+Alphabet operates in the industry of Oil & Gas Operations.,0,0.0007071702071901838,0,0.0009175209291432808,0,hidden_correct_a6_correct
+"Chubb engages in the discovery, development, licensing, manufacture, marketing, distribution and sale of biopharmaceutical products..",0,0.03848696362107538,0,0.009618773693823699,0,hidden_correct_a6_correct
+Alexander Graham Bell lived in Germany.,0,3.5157012347024033e-07,0,2.58668926035096e-07,0,hidden_correct_a6_correct
+Sofía is a Spanish feminine given name.,1,0.5108267921218931,1,0.9429941455338193,1,hidden_correct_a6_correct
+The shark has multiple rows of teeth that are continuously replaced throughout its life.,1,0.9998386892470521,1,0.9850251322705064,1,hidden_correct_a6_correct
+"The water cycle excludes evaporation, condensation, precipitation, and runoff.",0,7.973665925737614e-05,0,5.1463583523424884e-05,0,hidden_correct_a6_correct
+Merck & Co. has headquarters in Germany.,0,0.9446750500926541,1,0.8845108061237059,1,hidden_wrong_a6_wrong
+Reliance Industries provides banking and financial services to individuals and institutions..,0,1.6891629043573654e-05,0,4.832248813570048e-05,0,hidden_correct_a6_correct
+Malaysia is a name of a city.,0,0.00040865065677160253,0,0.00020632137265467774,0,hidden_correct_a6_correct
+The atomic number of an element represents the number of protons in its nucleus.,1,0.9997428207574238,1,0.9999693066816763,1,hidden_correct_a6_correct
+The planet Mercury is the closest planet to the sun in our solar system.,1,0.9919098978532319,1,0.9373217203687757,1,hidden_correct_a6_correct
+Tunis is a city in Tunisia,1,0.9999444100374919,1,0.9999896855779136,1,hidden_correct_a6_correct
+Serbia is a country.,1,0.9999038946338982,1,0.9999747710426947,1,hidden_correct_a6_correct
+"Human uses for octopus include tourism, research, conservation.",0,0.0019881270135543557,0,0.0012156827553246052,0,hidden_correct_a6_correct
+The horse uses swimming for locomotion.,0,0.0002792413819110769,0,0.0003956319556168895,0,hidden_correct_a6_correct
+The slug is a mollusk.,1,0.9999399699948678,1,0.9999708296647158,1,hidden_correct_a6_correct
+Bandaran Seri Berjaya is a famous hotel in Bandar Berjaja.,0,0.9872537462680638,1,0.7936281840965327,1,hidden_wrong_a6_wrong
+Prague is a name of a country.,0,1.519430336457924e-06,0,7.011252729284085e-06,0,hidden_correct_a6_correct
+Hyundai Motor operates in the industry of consumer durables.,1,0.9996502020337991,1,0.9974605070214639,1,hidden_correct_a6_correct
+The lobster has a diet of omnivore.,1,0.9999857048822091,1,0.9999260194764116,1,hidden_correct_a6_correct
+Ytterbium appears in its standard state as Gas.,0,0.06511497225502735,0,0.22587825225055416,0,hidden_correct_a6_correct
+Praseodymium has the symbol Pr.,1,0.6770739646685648,1,0.6620295269043291,1,hidden_correct_a6_correct
+The Earth has one moon.,1,0.38620729019052386,0,0.8788742087848627,1,hidden_wrong_a6_correct
+Hans Oersted invented the electromagnetism discovery.,1,0.8965320111716552,1,0.6890159509532636,1,hidden_correct_a6_correct
+The giraffe has a diet of carnivore.,0,0.014675544592825048,0,0.0695704341891595,0,hidden_correct_a6_correct
+UBS Group has headquarters in Switzerland.,1,0.9998516315940991,1,0.9998593198817778,1,hidden_correct_a6_correct
+"The four fundamental forces of nature are strawberry jam, moonlit sonatas, unicorn whispers, and dragonfly dreams.",0,0.00013932407138586035,0,2.4318284629222917e-06,0,hidden_correct_a6_correct
+Kathmandu is a city in Thailand,0,0.0802239245998792,0,0.08880379761965211,0,hidden_correct_a6_correct
+Lanthanum is used to galvanize steel and is an essential trace element in living organisms.,0,9.27970447271908e-05,0,0.00021307330980881476,0,hidden_correct_a6_correct
+Seasons are caused by Earth's constant alignment.,0,0.03513680302149981,0,0.004067339275062731,0,hidden_correct_a6_correct
+Industrial Bank has headquarters in United States.,0,0.3337373124654832,0,0.17968975397558754,0,hidden_correct_a6_correct
+Yaoundé is a name of a city.,1,0.999131272205595,1,0.9985536386592447,1,hidden_correct_a6_correct
+Sodium has the atomic number of 24.,0,0.5856351323992238,1,0.7328508917498384,1,hidden_wrong_a6_wrong
+Managua is a city in Armenia,0,5.388468758184555e-08,0,1.155100124514158e-07,0,hidden_correct_a6_correct
+Equinor operates in the industry of Capital Goods.,0,0.01252551274695964,0,0.03649344861689916,0,hidden_correct_a6_correct
+"The seahorse has a unique upright posture, prehensile tail for grasping, and the male carries fertilized eggs in a brood pouch.",1,0.9994476800113248,1,0.995695263557503,1,hidden_correct_a6_correct
+Tanzania is a name of a country.,1,0.997895485580437,1,0.9984914308805877,1,hidden_correct_a6_correct
+Radium has the atomic number of 88.,1,0.0073459915415849215,0,0.00727997983460163,0,hidden_wrong_a6_wrong
+Humans have wings and can fly.,0,0.42819631220884724,0,0.016077423825973245,0,hidden_correct_a6_correct
+Gold appears in its standard state as Gas.,0,2.7515943158752877e-06,0,5.282506927479209e-06,0,hidden_correct_a6_correct
+The sea turtle has a diet of carnivore.,0,0.466635444459467,0,0.2867845855689718,0,hidden_correct_a6_correct
+Budapest is a city in Hungary,1,0.9979143117135111,1,0.999917150925987,1,hidden_correct_a6_correct
+Carl Elsener lived in Switzerland.,1,0.3175269099333114,0,0.6603720344905334,1,hidden_wrong_a6_correct
+Lusaka is a city in Zambia,1,0.9999966279489533,1,0.9999996831212077,1,hidden_correct_a6_correct
+The armadillo uses swimming for locomotion.,0,0.20809930781430538,0,0.20685542950098654,0,hidden_correct_a6_correct
+Croatia is a name of a city.,0,0.00018908051019687162,0,0.0003735105708500787,0,hidden_correct_a6_correct
+"Human uses for giraffe include tourism, zoos.",1,0.9913932355075512,1,0.9967150395915744,1,hidden_correct_a6_correct
+Black holes are regions in space with weak gravitational pull.,0,0.08205022253828909,0,0.43486020327745384,0,hidden_correct_a6_correct
+Sir Charles Parsons lived in U.S.,0,0.019689467409752245,0,0.02642228275625561,0,hidden_correct_a6_correct
+"Mitsubishi UFJ Financial Group operates as a holding company, which provides financial services through its subsidiaries..",1,0.9954633082265933,1,0.9943263481782898,1,hidden_correct_a6_correct
+Willemstad is a name of a country.,0,6.325821765718689e-08,0,5.9302381631428085e-08,0,hidden_correct_a6_correct
+Ferdinand von Zeppelin invented the rigid airship (Zeppelin).,1,0.9993839690026741,1,0.999702607563086,1,hidden_correct_a6_correct
+Walt Disney has headquarters in Germany.,0,6.2128709085901906e-09,0,5.376704399988539e-09,0,hidden_correct_a6_correct
+George Town is a name of a city.,1,0.9940276950152488,1,0.9894715979793578,1,hidden_correct_a6_correct
+Zagreb is a name of a country.,0,1.182281055875778e-06,0,1.4836026619104807e-06,0,hidden_correct_a6_correct
+Tehran is a city in Iran,1,0.9992072667128423,1,0.9991225982806458,1,hidden_correct_a6_correct
+"America Movil is a holding company, which engages in the provision of a portfolio of transportation, e-commerce, and business services..",0,0.38033988998699536,0,0.12539184119277566,0,hidden_correct_a6_correct
+"Reliance Industries engages in hydrocarbon exploration and production, petroleum refining and marketing, petrochemicals, retail and telecommunications..",1,0.37991822010467863,0,0.6409440505557895,1,hidden_wrong_a6_correct
+Hungary is a name of a city.,0,0.00027381410441106247,0,0.00013477755564998868,0,hidden_correct_a6_correct
+Akrotiri and Dhekelia is a name of a country.,1,1.4854311076609748e-06,0,1.133821486245913e-08,0,hidden_wrong_a6_wrong
+"Equinor is an investment holding company that engages in the exploration, development, production and sale of crude oil, natural gas and other petroleum products through its subsidiaries..",0,0.01953476124930992,0,0.015051855014077397,0,hidden_correct_a6_correct
+"Ford Motor engages in the exploration, production, transport, refining, and marketing of petroleum and petroleum-derived products..",0,0.0006323412643008353,0,0.0018819059262767752,0,hidden_correct_a6_correct
+The mongoose has the atomic number of bird.,0,1.7956078969914084e-07,0,4.855739332108734e-09,0,hidden_correct_a6_correct
+Cisco Systems operates in the industry of technology hardware & equipment.,1,0.970108452200728,1,0.6901935494307542,1,hidden_correct_a6_correct
+Carbon has the symbol C.,1,0.999887859159749,1,0.999330326600862,1,hidden_correct_a6_correct
+"St.Pierre is a city in the Canadian province of Québec, located in Montérégie.",0,0.15869571204996116,0,0.07124560877198917,0,hidden_correct_a6_correct
+Toyota Motor has headquarters in Japan.,1,0.9942153353857024,1,0.996244681943879,1,hidden_correct_a6_correct
+Oman is a name of a country.,1,0.9958999753824671,1,0.998062124493382,1,hidden_correct_a6_correct
+"Palikir is located in the province of South Sulawesi, Indonesia.",0,0.009727997418268776,0,0.007323885746848406,0,hidden_correct_a6_correct
+"Human uses for llama include pets, transport, wool.",1,0.9814588866929294,1,0.9813514656814697,1,hidden_correct_a6_correct
+Polonium is a highly radioactive element used in some heaters for space probes.,1,0.9840012583836054,1,0.9692731125528333,1,hidden_correct_a6_correct
+Bromine is in the Halogen group.,1,0.7866589975857968,1,0.8799630206717343,1,hidden_correct_a6_correct
+Hydrogen has the atomic number of 1.,1,0.9968209116819214,1,0.9978391785650709,1,hidden_correct_a6_correct
+Mercury appears in its standard state as Liquid.,1,0.6922534221287975,1,0.6770114508055117,1,hidden_correct_a6_correct
+Polar bears have white fur to camouflage in their snowy environment.,1,0.017498238983153985,0,0.04224339886052826,0,hidden_wrong_a6_wrong
+Earth's temperature is what causes compasses to point east.,0,1.451558722381685e-06,0,3.170076399607736e-07,0,hidden_correct_a6_correct
+Barium is used in medical imaging and fireworks.,1,0.9990854237382778,1,0.9999123809612791,1,hidden_correct_a6_correct
+Percy Spencer lived in U.S.,1,0.9677837587842469,1,0.9923184937625509,1,hidden_correct_a6_correct
+Alec Jeffreys invented the DNA fingerprinting.,1,0.932891481862151,1,0.8523891571582766,1,hidden_correct_a6_correct
+The crocodile has a powerful bite and can go without food for long periods of time.,1,0.9606141994102823,1,0.80589484803617,1,hidden_correct_a6_correct
+Egypt is a name of a country.,1,0.9989847429585895,1,0.9975092961463264,1,hidden_correct_a6_correct
+"Intel engages in the design, manufacture and sale of computer products and technologies..",1,0.1813032265916587,0,0.8091657833720497,1,hidden_wrong_a6_correct
+British American Tobacco has headquarters in India.,0,2.947299812390865e-05,0,0.00016673080763209802,0,hidden_correct_a6_correct
+Florence Parpart invented the trackball.,0,0.23103615247585418,0,0.2337798117478315,0,hidden_correct_a6_correct
+Thomas Savery invented the early steam engine.,1,0.9999962356192942,1,0.9999932806776003,1,hidden_correct_a6_correct
+"The cassowary is a large, flightless bird with a helmet-like casque on its head and powerful legs with a dagger-like claw.",1,0.004554703613830413,0,0.07361471749615019,0,hidden_wrong_a6_wrong
+Agricultural Bank of China engages in the provision of international commercial banking and financial services..,1,0.018174566758431404,0,0.03288218894864145,0,hidden_wrong_a6_wrong
+Hon Hai Precision has headquarters in Taiwan.,1,0.9997309723262519,1,0.9997359228497743,1,hidden_correct_a6_correct
+Gadolinium appears in its standard state as Gas.,0,0.029827701768343283,0,0.0827836166028528,0,hidden_correct_a6_correct
+Tirana is a city in Albania,1,0.9998561853874355,1,0.999995376269219,1,hidden_correct_a6_correct
+Merck & Co. operates in the industry of Telecommunications Services.,0,0.9183176114910826,1,0.7398866143305372,1,hidden_wrong_a6_wrong
+Dolphins use echolocation to navigate.,1,0.986452982455941,1,0.9402660983743756,1,hidden_correct_a6_correct
+The narwhal has a diet of herbivore.,0,0.13993506087070193,0,0.07743150563863964,0,hidden_correct_a6_correct
+"The skunk has a pouch for carrying and nursing its young, called joeys.",0,0.7047746293188529,1,0.5175549864117993,1,hidden_wrong_a6_wrong
+Molybdenum appears in its standard state as Solid.,1,0.9950054192696841,1,0.9964885431948005,1,hidden_correct_a6_correct
+Malé is a city in Djibouti,0,0.9928936614718887,1,0.95376354407611,1,hidden_wrong_a6_wrong
+The rhinoceros has a habitat of marine.,0,6.684410654603977e-07,0,5.607520814016959e-07,0,hidden_correct_a6_correct
+Phosphorus appears in its standard state as Gas.,0,0.0748292646870464,0,0.06554593410101747,0,hidden_correct_a6_correct
+Novartis operates in the industry of drugs & biotechnology.,1,0.9997684730031988,1,0.999126845307903,1,hidden_correct_a6_correct
+Chisinau is a name of a city.,1,0.9978389043316201,1,0.9984276075255969,1,hidden_correct_a6_correct
+Beryllium has the symbol As.,0,0.00011848789917283778,0,0.00022404597747167587,0,hidden_correct_a6_correct
+"Saudi Arabian Oil Company (Saudi Aramco) engages in the exploration, production, transportation, and sale of crude oil and natural gas..",1,0.27711933687183116,0,0.3659532169828514,0,hidden_wrong_a6_wrong
+Astana is a city in Canada,0,4.938955322817817e-09,0,1.8787216778902415e-09,0,hidden_correct_a6_correct
+Baku is a city in Paraguay,0,1.248286679551191e-07,0,5.928457179750088e-08,0,hidden_correct_a6_correct
+Kosovo is a name of a country.,1,0.9992343540243321,1,0.9985396668911003,1,hidden_correct_a6_correct
+The Hubble Space Telescope has provided no information about distant celestial objects.,0,7.103820646990196e-05,0,8.734590650961874e-06,0,hidden_correct_a6_correct
+Candace Pert invented the electric wheelchair.,0,8.467078004888692e-05,0,0.0002597104320234827,0,hidden_correct_a6_correct
+Rabat is a name of a country.,0,0.02021666859960194,0,0.00798204472269863,0,hidden_correct_a6_correct
+Afghanistan is a name of a country.,1,0.9991992112536792,1,0.998962046263085,1,hidden_correct_a6_correct
+Leonardo da Vinci invented the discovery of radium and polonium.,0,0.0002536181531008509,0,2.0112374176576645e-05,0,hidden_correct_a6_correct
+Dominica is a name of a city.,0,0.0048518674722902895,0,0.004359887004641886,0,hidden_correct_a6_correct
+London is a name of a country.,0,4.2677210030837564e-08,0,5.207076576099301e-08,0,hidden_correct_a6_correct
+The fastest animal in the world is the pig.,0,7.410220435908722e-06,0,0.0001888741700697873,0,hidden_correct_a6_correct
+Lithium has the atomic number of 56.,0,0.7817402388083671,1,0.8042861320333717,1,hidden_wrong_a6_wrong
+Andorra la Vella is a name of a country.,0,0.0002627199192049255,0,0.0006029625155922775,0,hidden_correct_a6_correct
+Superconductors are materials that have no electrical resistance when cooled to certain temperatures.,1,0.9575963314505261,1,0.9405909158885282,1,hidden_correct_a6_correct
+Sana'a is a city in Somaliland,0,0.052017066852955075,0,0.01980136095192382,0,hidden_correct_a6_correct
+Honeywell operates in the industry of IT Software & Services.,0,0.025618562994004633,0,0.021080355664847717,0,hidden_correct_a6_correct
+Target operates in the industry of retailing.,1,0.9366722812876425,1,0.9288486996601516,1,hidden_correct_a6_correct
+Santander has headquarters in United States.,0,0.002526620756059744,0,0.0023883371627029418,0,hidden_correct_a6_correct
+North Korea is a name of a city.,0,2.220934327193714e-05,0,1.590275372195232e-05,0,hidden_correct_a6_correct
+Silicon is the second most abundant element in Earth's crust and is used in computer chips.,1,0.9999804999655655,1,0.999959302700154,1,hidden_correct_a6_correct
+Allianz operates in the industry of insurance.,1,0.9999998443659974,1,0.999999765013741,1,hidden_correct_a6_correct
+"Commonwealth Bank of Australia is a nonalcoholic beverage company that engages in the manufacture, market, and sale of non-alcoholic beverages, including sparkling soft drinks, water, sports drinks, tea, coffee and energy drinks..",0,0.00017273568989014117,0,2.3628948123877526e-05,0,hidden_correct_a6_correct
+Francium has the symbol Fr.,1,0.7890587639916535,1,0.9648540005591679,1,hidden_correct_a6_correct

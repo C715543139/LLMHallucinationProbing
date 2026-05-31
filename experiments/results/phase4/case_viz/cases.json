@@ -1,0 +1,440 @@
+[
+  {
+    "case_type": "true_correct_case",
+    "statement": "Sofía is a Spanish feminine given name.",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.5108267921218931,
+    "hidden_pred": 1,
+    "a6_prob": 0.9429941455338193,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1,
+      2
+    ],
+    "relation_token_indices": [
+      3
+    ],
+    "tail_token_indices": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "last_token_index": 9,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Both correct. True statement, both hidden and A6 correct.",
+    "image_path": "experiments/results/phase4/case_viz/true_correct_case_l16_h5_1.png"
+  },
+  {
+    "case_type": "true_correct_case",
+    "statement": "Human uses for kangaroo include tourism, zoos, meat.",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.5641175465293957,
+    "hidden_pred": 1,
+    "a6_prob": 0.8112603105285954,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1
+    ],
+    "relation_token_indices": [],
+    "tail_token_indices": [
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "last_token_index": 12,
+    "rule_name": "fallback",
+    "valid": true,
+    "description": "Both correct. True statement, both hidden and A6 correct.",
+    "image_path": "experiments/results/phase4/case_viz/true_correct_case_l16_h5_2.png"
+  },
+  {
+    "case_type": "true_correct_case",
+    "statement": "Praseodymium has the symbol Pr.",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.6770739646685648,
+    "hidden_pred": 1,
+    "a6_prob": 0.6620295269043291,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "relation_token_indices": [
+      4
+    ],
+    "tail_token_indices": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "last_token_index": 8,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Both correct. True statement, both hidden and A6 correct.",
+    "image_path": "experiments/results/phase4/case_viz/true_correct_case_l16_h5_3.png"
+  },
+  {
+    "case_type": "false_correct_case",
+    "statement": "The sea turtle has a diet of carnivore.",
+    "gold_label": 0,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.466635444459467,
+    "hidden_pred": 0,
+    "a6_prob": 0.2867845855689718,
+    "a6_pred": 0,
+    "subject_token_indices": [
+      0,
+      1,
+      2
+    ],
+    "relation_token_indices": [
+      3
+    ],
+    "tail_token_indices": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "last_token_index": 9,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Both correct. False statement, both hidden and A6 correct.",
+    "image_path": "experiments/results/phase4/case_viz/false_correct_case_l16_h5_1.png"
+  },
+  {
+    "case_type": "false_correct_case",
+    "statement": "Humans have wings and can fly.",
+    "gold_label": 0,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.42819631220884724,
+    "hidden_pred": 0,
+    "a6_prob": 0.016077423825973245,
+    "a6_pred": 0,
+    "subject_token_indices": [
+      0
+    ],
+    "relation_token_indices": [
+      1
+    ],
+    "tail_token_indices": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "last_token_index": 6,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Both correct. False statement, both hidden and A6 correct.",
+    "image_path": "experiments/results/phase4/case_viz/false_correct_case_l16_h5_2.png"
+  },
+  {
+    "case_type": "false_correct_case",
+    "statement": "America Movil is a holding company, which engages in the provision of a portfolio of transportation, e-commerce, and business services..",
+    "gold_label": 0,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.38033988998699536,
+    "hidden_pred": 0,
+    "a6_prob": 0.12539184119277566,
+    "a6_pred": 0,
+    "subject_token_indices": [
+      0,
+      1,
+      2
+    ],
+    "relation_token_indices": [
+      3
+    ],
+    "tail_token_indices": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25
+    ],
+    "last_token_index": 25,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Both correct. False statement, both hidden and A6 correct.",
+    "image_path": "experiments/results/phase4/case_viz/false_correct_case_l16_h5_3.png"
+  },
+  {
+    "case_type": "hard_or_failure_case",
+    "statement": "Abu Dhabi is a name of a country.",
+    "gold_label": 0,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.5353577604348052,
+    "hidden_pred": 1,
+    "a6_prob": 0.6132068325549476,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1,
+      2
+    ],
+    "relation_token_indices": [
+      3
+    ],
+    "tail_token_indices": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "last_token_index": 9,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Both wrong. Challenging case where both methods fail.",
+    "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l16_h5_1.png"
+  },
+  {
+    "case_type": "hard_or_failure_case",
+    "statement": "Ruthenium is in the Lanthanide group.",
+    "gold_label": 0,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.43631580474353604,
+    "hidden_pred": 0,
+    "a6_prob": 0.7023321728075829,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "relation_token_indices": [
+      4
+    ],
+    "tail_token_indices": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "last_token_index": 12,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Hidden correct, A6 wrong. Attention features degraded performance.",
+    "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l16_h5_2.png"
+  },
+  {
+    "case_type": "hard_or_failure_case",
+    "statement": "Sodium has the atomic number of 24.",
+    "gold_label": 0,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.5856351323992238,
+    "hidden_pred": 1,
+    "a6_prob": 0.7328508917498384,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1
+    ],
+    "relation_token_indices": [
+      2
+    ],
+    "tail_token_indices": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "last_token_index": 10,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Both wrong. Challenging case where both methods fail.",
+    "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l16_h5_3.png"
+  },
+  {
+    "case_type": "hard_or_failure_case",
+    "statement": "The Earth has one moon.",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.38620729019052386,
+    "hidden_pred": 0,
+    "a6_prob": 0.8788742087848627,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1
+    ],
+    "relation_token_indices": [
+      2
+    ],
+    "tail_token_indices": [
+      3,
+      4,
+      5
+    ],
+    "last_token_index": 5,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l16_h5_4.png"
+  },
+  {
+    "case_type": "hard_or_failure_case",
+    "statement": "Reliance Industries engages in hydrocarbon exploration and production, petroleum refining and marketing, petrochemicals, retail and telecommunications..",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.37991822010467863,
+    "hidden_pred": 0,
+    "a6_prob": 0.6409440505557895,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "relation_token_indices": [],
+    "tail_token_indices": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "last_token_index": 24,
+    "rule_name": "fallback",
+    "valid": true,
+    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l16_h5_5.png"
+  },
+  {
+    "case_type": "improvement_case",
+    "statement": "The Earth has one moon.",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.38620729019052386,
+    "hidden_pred": 0,
+    "a6_prob": 0.8788742087848627,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1
+    ],
+    "relation_token_indices": [
+      2
+    ],
+    "tail_token_indices": [
+      3,
+      4,
+      5
+    ],
+    "last_token_index": 5,
+    "rule_name": "copula",
+    "valid": true,
+    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "image_path": "experiments/results/phase4/case_viz/improvement_case_l16_h5_1.png"
+  },
+  {
+    "case_type": "improvement_case",
+    "statement": "Carl Elsener lived in Switzerland.",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.3175269099333114,
+    "hidden_pred": 0,
+    "a6_prob": 0.6603720344905334,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0
+    ],
+    "relation_token_indices": [],
+    "tail_token_indices": [
+      6,
+      7
+    ],
+    "last_token_index": 7,
+    "rule_name": "fallback",
+    "valid": true,
+    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "image_path": "experiments/results/phase4/case_viz/improvement_case_l16_h5_2.png"
+  },
+  {
+    "case_type": "improvement_case",
+    "statement": "Reliance Industries engages in hydrocarbon exploration and production, petroleum refining and marketing, petrochemicals, retail and telecommunications..",
+    "gold_label": 1,
+    "layer": 16,
+    "head": 5,
+    "hidden_prob": 0.37991822010467863,
+    "hidden_pred": 0,
+    "a6_prob": 0.6409440505557895,
+    "a6_pred": 1,
+    "subject_token_indices": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "relation_token_indices": [],
+    "tail_token_indices": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "last_token_index": 24,
+    "rule_name": "fallback",
+    "valid": true,
+    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "image_path": "experiments/results/phase4/case_viz/improvement_case_l16_h5_3.png"
+  }
+]
