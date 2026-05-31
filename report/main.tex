@@ -1,0 +1,375 @@
+\documentclass[11pt]{article}
+
+\usepackage[preprint]{acl}
+
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{tabularx}
+
+\title{Probing Hallucination Signals in Large Language Model Internal States}
+
+\author{
+  Course Project Team \\
+  LLM Hallucination Probing
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Hallucination detection is often treated as an output-level problem, but a language model may already encode evidence about factual correctness in its internal activations. This report studies binary factuality detection on a True-False statement dataset using Qwen2-1.5B. We compare a perplexity baseline with SAPLMA-style hidden-state probes, analyze which layers and token positions expose the strongest signal, and evaluate attention-guided feature extensions. Perplexity provides weak but non-random evidence, reaching 52.93\% accuracy and 0.6784 AUROC on the test set. Hidden-state probing is much stronger: a final-layer logistic probe reaches 74.96\% accuracy and 0.8265 AUROC, while an MLP probe reaches 77.71\% accuracy and 0.8770 AUROC. Layer analysis further shows that factuality signals are strongest in middle-to-late layers rather than at the final layer; the validation-selected layer 17 reaches 80.03\% accuracy and 0.8876 AUROC. On a Phase 4 subset, adding top-head attention features improves the hidden-only subset baseline from 86.67\% to 88.67\% accuracy, while a hidden-attention-output fusion reaches 0.9403 AUROC. These results support the view that internal states provide more reliable hallucination signals than output likelihood alone, and that selected attention features offer useful complementary evidence.
+\end{abstract}
+
+\section{Introduction}
+
+Large language models (LLMs) can produce fluent answers that are factually wrong. This behavior, commonly called hallucination, is a central obstacle to reliable use of LLMs in knowledge-intensive settings such as education, scientific assistance, legal support, and decision making \citep{ji2023survey,li2023halueval}. A practical detector should identify when a generated or evaluated statement is likely to be false, but the signal used for detection matters. Output likelihood and confidence are easy to obtain, yet they primarily measure how natural a sequence is under the model, not whether the sequence is true.
+
+This project follows a different hypothesis: factuality may be more directly visible inside the model than in the final likelihood assigned to a sentence. Prior work argues that LLM activations can contain linearly or non-linearly readable truthfulness information \citep{azaria2023internal,burns2022discovering}. If this is true, hallucination detection can be framed as a probing problem: freeze the LLM, extract internal features from a statement, and train a lightweight detector over those features.
+
+We evaluate this hypothesis on a True-False statement dataset using Qwen2-1.5B \citep{yang2024qwen2}. The task is binary: given a statement, predict whether it is true or false. The project is organized around three questions. First, how far can a simple perplexity (PPL) baseline go? Second, do hidden states expose stronger factuality signals, and which layers or token positions are most useful? Third, can attention-derived features provide complementary evidence beyond hidden states?
+
+Our contributions are:
+
+\begin{itemize}
+  \item We implement and compare PPL and SAPLMA-style hidden-state probes under a fixed train/validation/test split.
+  \item We analyze layer depth and token pooling, showing that middle-to-late layers and last-token representations are substantially more informative.
+  \item We design attention-guided extensions based on statement anchors, attention scores, head selection, attention outputs, and feature fusion.
+  \item We provide quantitative ablations and case-level visualizations showing when attention features correct hidden-only errors.
+\end{itemize}
+
+\section{Related Work}
+
+\paragraph{Hallucination detection.}
+Hallucination in natural language generation refers to generated content that is fluent but unsupported, inconsistent, or factually incorrect \citep{ji2023survey}. Benchmarks such as HaluEval evaluate hallucination behavior across tasks and model outputs \citep{li2023halueval}. Many applied systems address hallucination using retrieval, external fact checking, or post-hoc verification. These approaches are valuable, but they rely on external evidence sources and do not directly answer whether the model's own computation contains a factuality signal.
+
+\paragraph{Likelihood and uncertainty signals.}
+A natural internal baseline is likelihood. If a model assigns lower loss to true statements than to false statements, sequence probability or PPL can be used as a detector. However, likelihood is affected by frequency, style, surface fluency, and length. A false but familiar-sounding statement may have low PPL, while a true but rare statement may have high PPL. For this reason, likelihood is best treated as a baseline rather than a complete factuality measure.
+
+\paragraph{Probing internal representations.}
+The internal-state view is motivated by work showing that truthfulness and latent knowledge can be extracted from model activations \citep{azaria2023internal,burns2022discovering}. Instead of asking whether the model's next-token probabilities directly reveal truth, probing asks whether hidden states contain a representation from which truth can be predicted. This report adopts that framing through SAPLMA-style classifiers over frozen Qwen2-1.5B activations.
+
+\paragraph{Attention as diagnostic signal.}
+Transformer attention \citep{vaswani2017attention} is not a complete causal explanation of model behavior, but it can expose structured interactions between tokens. Our advanced experiments use attention not as a standalone explanation, but as a feature family: attention mass from the last token to statement anchors, validation-selected heads, and attention-output activations are tested as complementary signals to hidden states.
+
+\section{Task and Experimental Setup}
+
+\subsection{Task Definition}
+
+Each example is a declarative statement \(x\) with a binary label \(y \in \{0,1\}\), where \(1\) denotes a true statement and \(0\) denotes a false statement. A detector receives the statement and outputs both a binary prediction and a continuous score. The continuous score is used for AUROC, while the binary prediction is used for accuracy and macro-F1.
+
+This setting differs from open-ended answer generation. We do not first ask the model to generate a response and then verify it. Instead, we probe whether the model's internal computation over a given statement separates factual from non-factual inputs.
+
+\subsection{Dataset}
+
+The processed dataset contains 6,309 effective examples from seven CSV sources: animals, cities, companies, chemical elements, scientific facts, inventions, and an additional generated subset. The first six domains match the course task description; the generated subset is included in the current project configuration. The split is fixed at 8:1:1 and stratified by domain and label.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Split & Examples & True & False \\
+\midrule
+Train & 5,047 & 2,539 & 2,508 \\
+Validation & 631 & 317 & 314 \\
+Test & 631 & 317 & 314 \\
+\bottomrule
+\end{tabular}
+\caption{Processed dataset split. Train is used for probe fitting, validation for threshold and model selection, and test for final evaluation.}
+\label{tab:dataset}
+\end{table}
+
+\subsection{Model and Feature Extraction}
+
+All experiments use Qwen2-1.5B as the frozen base model. We extract hidden states and attention tensors through the Hugging Face Transformers stack \citep{wolf2020transformers}. The LLM is never fine-tuned; only lightweight downstream classifiers are trained. For Phase 4, the stable execution path is eager attention with bfloat16. Earlier float16 runs produced NaNs in representative hidden and attention slices, so the reported advanced results use the bfloat16 rerun.
+
+The hidden-state experiments use layer indices over the 28 Transformer blocks, excluding the embedding output from the layer numbering. Token pooling variants include the first token, mean pooling over valid tokens, and the final valid token. The attention experiments define statement anchors over subject, relation, tail, and last-token positions, then compute attention-score features and attention-output features from selected layers and heads.
+
+\subsection{Metrics}
+
+We report accuracy, macro-F1, and AUROC. Accuracy measures thresholded correctness, macro-F1 accounts for class balance, and AUROC measures ranking quality under continuous detector scores. AUROC is especially important because a practical detector may adjust its decision threshold for different risk levels.
+
+\section{Methods}
+
+\subsection{Perplexity Baseline}
+
+The PPL baseline uses the language modeling loss of the full statement. Given a tokenized statement, we compute the average causal language modeling loss \(\mathcal{L}(x)\) and define:
+
+\begin{equation}
+\mathrm{PPL}(x) = \exp(\mathcal{L}(x)).
+\end{equation}
+
+Lower PPL means that the model finds the statement more likely. We use validation data to select a threshold and then apply the fixed threshold to the test set. For AUROC, the continuous PPL-derived score is used directly. The method is simple and model-internal, but it cannot distinguish factuality from surface naturalness.
+
+\subsection{Hidden-State Probing}
+
+The SAPLMA-style detector extracts a hidden representation from the frozen LLM and trains a classifier over it. For a statement \(x\), the model produces hidden states at each Transformer block. A layer \(l\) and pooling rule \(p\) define a feature vector:
+
+\begin{equation}
+h(x) = \mathrm{pool}_p(H_l(x)).
+\end{equation}
+
+We evaluate logistic regression and MLP classifiers. Features are standardized before classification. The classifier seeds are 42, 123, and 2024; reported SAPLMA values are test-set means and standard deviations across those seeds. The final-layer baseline uses layer 27 with last-token pooling. Later analysis varies the layer and pooling choice.
+
+\subsection{Layer and Token-Pooling Analysis}
+
+Layer analysis trains one logistic probe per Transformer block using last-token pooling. The validation split selects the operating layer, and the selected layer is then evaluated on test data. This avoids selecting the layer by test performance. Token-pooling analysis fixes the final layer and compares last-token, mean-token, and first-token representations.
+
+\subsection{Attention-Guided Extensions}
+
+The advanced method family tests whether attention contributes information not already present in hidden states. Because the dataset consists of statements rather than question-answer pairs, we do not use answer-to-question attention. Instead, each statement is mapped to simple anchors: subject tokens, relation tokens, tail tokens, and the final valid token. For each layer and head, we summarize attention from the last token to these anchors.
+
+We evaluate several feature families. Raw attention-score features are computed for all candidate heads. Debiased attention features remove length-related effects through residualization. Top-head features keep the heads with the strongest validation AUROC. Attention-output features summarize selected attention output activations. Fusion methods concatenate these features with the hidden-state baseline or use a gated decision rule. The main variants are A0/A0s through A9, where A0 is the full hidden-only baseline, A0s is the subset hidden-only baseline, and A6/A8 are the strongest attention-enhanced variants.
+
+\section{Results and Analysis}
+
+\subsection{PPL vs. Hidden-State Probing}
+
+Table~\ref{tab:main-results} compares the main Phase 2 baselines. PPL reaches only 52.93\% accuracy and 0.6784 AUROC. This is above random in ranking terms, but weak as a binary classifier. The SAPLMA logistic probe is much stronger, reaching 74.96\% accuracy and 0.8265 AUROC. The MLP probe further improves the result to 77.71\% accuracy and 0.8770 AUROC.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & Accuracy & Macro-F1 & AUROC \\
+\midrule
+PPL baseline & 52.93 & 41.80 & 67.84 \\
+SAPLMA LR & 74.96 & 74.96 & 82.65 \\
+SAPLMA MLP & 77.71 & 77.69 & 87.70 \\
+\bottomrule
+\end{tabular}
+\caption{Main Phase 2 test results. Values are percentages. SAPLMA results use layer 27 with last-token pooling.}
+\label{tab:main-results}
+\end{table}
+
+Figure~\ref{fig:ppl} explains why PPL is limited. False statements have a higher average PPL in the visualization run, but the true and false distributions overlap heavily. This means a single threshold cannot reliably separate the classes. The archived main PPL metrics remain those in Table~\ref{tab:main-results}.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/ppl_score_distribution.png}
+\caption{PPL distribution on the test set. PPL gives a weak ranking signal, but true and false statements overlap substantially.}
+\label{fig:ppl}
+\end{figure*}
+
+These results support the first central claim: output likelihood alone is not enough. Hidden-state features expose a much cleaner factuality signal than PPL, even with lightweight classifiers.
+
+\subsection{Layer-Wise Analysis}
+
+Table~\ref{tab:layers} reports representative layers from the Phase 3 layer sweep. Layer 0 is nearly random, while middle-to-late layers perform strongly. Layer 17 is the validation-selected layer and reaches 80.03\% accuracy and 0.8876 AUROC on the test set. Some neighboring layers, such as layers 15 and 20, have higher test AUROC, so we avoid claiming that layer 17 is the absolute best test layer. The more robust conclusion is that the strongest region is a middle-to-late layer band rather than the final layer alone.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Layer & Accuracy & Macro-F1 & AUROC \\
+\midrule
+0 & 48.49 & 48.49 & 50.10 \\
+13 & 82.25 & 82.24 & 89.51 \\
+15 & 82.88 & 82.88 & 91.03 \\
+17 & 80.03 & 80.01 & 88.76 \\
+20 & 82.88 & 82.88 & 90.40 \\
+27 & 74.96 & 74.96 & 82.65 \\
+\bottomrule
+\end{tabular}
+\caption{Representative test results from layer-wise logistic probes with last-token pooling. Values are percentages. Layer 17 is selected by validation accuracy.}
+\label{tab:layers}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/layer_accuracy_curve.png}
+\caption{Layer-wise test accuracy curve. Factuality signals emerge strongly in middle-to-late layers and decline at the final layer.}
+\label{fig:layer-curve}
+\end{figure*}
+
+The layer trend is important for implementation. A stronger classifier cannot compensate for a poor representation choice. The validation-selected layer 17 logistic probe outperforms the final-layer MLP baseline in accuracy, even though the MLP is a more expressive classifier.
+
+\subsection{Token Pooling}
+
+Table~\ref{tab:pooling} shows the token-pooling comparison at the final layer. Last-token pooling is clearly strongest. Mean pooling preserves some signal but dilutes localized evidence, while first-token pooling performs poorly.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Pooling & Accuracy & Macro-F1 & AUROC \\
+\midrule
+Last token & 74.96 & 74.96 & 82.65 \\
+Mean token & 70.52 & 70.52 & 76.36 \\
+First token & 42.00 & 41.97 & 37.94 \\
+\bottomrule
+\end{tabular}
+\caption{Token-pooling results at layer 27. Values are percentages.}
+\label{tab:pooling}
+\end{table}
+
+This result matches the causal structure of autoregressive models. The final valid token has attended over the preceding statement and is therefore a compact readout of the full input. The first token has little access to later statement content, so it is not a useful factuality readout.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.68\textwidth]{figures/token_accuracy_comparison.png}
+\caption{Accuracy comparison for token-pooling variants. Last-token pooling is the most reliable readout position.}
+\label{fig:token}
+\end{figure*}
+
+\subsection{Attention Feature Ablation}
+
+Phase 4 evaluates attention features on a 600/150/150 train/validation/test subset. This subset restriction is important: the attention-fusion improvements should not be described as full-dataset results. Table~\ref{tab:phase4} summarizes the main ablation.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabularx}{\textwidth}{l>{\raggedright\arraybackslash}Xrrrr}
+\toprule
+ID & Feature family & Dim. & Accuracy & Macro-F1 & AUROC \\
+\midrule
+A0 & Hidden-only, full data & 1536 & 80.82 & 80.81 & 88.97 \\
+A0s & Hidden-only, subset & 1536 & 86.67 & 86.61 & 91.84 \\
+A1 & Raw attn. score only & 1536 & 76.67 & 76.54 & 82.89 \\
+A2 & Debiased attn. score only & 1536 & 77.33 & 77.13 & 82.85 \\
+A3 & Top-16-head attn. score only & 256 & 76.00 & 75.65 & 79.34 \\
+A4 & Attn. output only & 40 & 68.00 & 68.00 & 74.93 \\
+A5 & Hidden + debiased attn. score & 3072 & 87.33 & 87.29 & 93.02 \\
+A6 & Hidden + top-16-head attn. & 1792 & 88.67 & 88.65 & 93.30 \\
+A7 & Hidden + attn. output & 1576 & 84.67 & 84.63 & 92.54 \\
+A8 & Hidden + top-head + output & 1832 & 88.00 & 87.98 & 94.03 \\
+A9 & Gated fusion, \(\tau=0.05\) & -- & 86.67 & 86.61 & 91.93 \\
+\bottomrule
+\end{tabularx}
+\caption{Phase 4 ablation results. A0 is the full hidden-only baseline; A0s-A9 use the 600/150/150 subset. Values are percentages.}
+\label{tab:phase4}
+\end{table*}
+
+Attention score features alone are useful, with A1 and A2 well above random. However, attention is most effective when used as a complement to hidden states. A5 improves over A0s by adding debiased attention scores. A6, which uses hidden features plus validation-selected top-16 attention heads, reaches the best accuracy and macro-F1: 88.67\% and 88.65\%. A8 reaches the best AUROC at 0.9403, suggesting that attention output features improve ranking even when their thresholded accuracy is slightly below A6.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/method_accuracy_comparison.png}
+\caption{Phase 4 subset accuracy comparison. A6 is the strongest thresholded detector among the attention-fusion variants.}
+\label{fig:phase4-acc}
+\end{figure*}
+
+The best single attention head is L16-H05, with validation AUROC 0.6776. This head is weak compared with hidden-state probes, but selected heads become useful when fused with hidden states. This pattern supports a complementary-feature interpretation rather than an attention-only interpretation.
+
+\subsection{Case-Level Correction}
+
+Aggregate accuracy can hide whether a fusion method actually corrects hidden-only mistakes. We therefore compare A6 against the hidden-only subset baseline sample by sample. Table~\ref{tab:a6-cases} shows the correction matrix on the 150-example test subset.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+ & A6 correct & A6 wrong \\
+\midrule
+Hidden correct & 129 & 1 \\
+Hidden wrong & 4 & 16 \\
+\bottomrule
+\end{tabular}
+\caption{A6 correction matrix against the hidden-only subset baseline. A6 corrects four hidden-only errors and introduces one regression, for a net correction of +3.}
+\label{tab:a6-cases}
+\end{table}
+
+The corrected examples include simple factual statements such as ``The Earth has one moon.'' In this case, the hidden-only classifier predicts false with probability 0.386 for the true class, while A6 predicts true with probability 0.879. The attention visualization for the strongest head is shown in Appendix~\ref{app:cases}. This evidence should be interpreted cautiously: attention maps are diagnostic, not causal proof. Still, the case matrix confirms that the A6 gain is not only a threshold artifact; it changes several hidden-only mistakes into correct predictions.
+
+\section{Discussion}
+
+\paragraph{Why PPL is weak.}
+PPL measures how well the model predicts a sequence. It is sensitive to sentence length, lexical frequency, common phrasing, and fluency. These factors correlate imperfectly with truth. The PPL distribution shows a higher false-statement tail, but the overlap is too large for a stable binary detector. This explains why PPL has moderate AUROC but poor accuracy and macro-F1.
+
+\paragraph{Why hidden states work.}
+Hidden states summarize more than final token probabilities. They encode semantic composition, entity-relation information, and model-internal consistency signals. The strong performance of logistic probes indicates that a substantial part of the factuality signal is linearly readable. The MLP improvement shows that non-linear boundaries can extract additional information, but the layer analysis shows that representation choice is at least as important as classifier complexity.
+
+\paragraph{Why middle-to-late layers are strongest.}
+The layer sweep suggests that factuality is not maximally available at the embedding-like bottom layer or necessarily at the final layer. Early layers mostly encode local lexical and syntactic information. Middle-to-late layers have integrated enough context to expose factuality signals. The final layer may be more specialized for immediate next-token prediction, which can make it less ideal as a general factuality representation.
+
+\paragraph{Why attention helps.}
+The attention features preserve structured alignment information between the final token and statement anchors. Hidden states compress the entire statement into a dense vector, whereas attention scores expose where the model routes information. After debiasing and validation-based head selection, these features become complementary to hidden states. However, attention-only features remain weaker than hidden-state probes, and the subset-only nature of the A6/A8 results limits the strength of the conclusion.
+
+\paragraph{Engineering lessons.}
+The Phase 4 rerun also shows that numerical stability is part of the method. On the tested RTX 3090 environment, eager attention with float16 produced NaNs, while eager attention with bfloat16 was stable for hidden states, attention scores, and attention outputs. Reproducible probing therefore requires documenting dtype and attention implementation, not only model and dataset.
+
+\section{Conclusion}
+
+This project shows that LLM internal states provide substantially stronger hallucination-detection signals than output perplexity alone. On the full test set, SAPLMA-style hidden-state probes outperform PPL by large margins in accuracy, macro-F1, and AUROC. Layer and token analyses show that the best readout is not a generic final-layer representation: factuality signals are strongest in middle-to-late layers, and last-token pooling is much more reliable than first-token or mean pooling. Attention-guided features add a further interpretable extension. On a controlled subset, top-head attention fusion improves the hidden-only baseline and corrects a small but concrete set of hidden-only errors. Future work should validate the attention-fusion result on the full dataset, test larger and different model families, and design more robust fusion or routing mechanisms.
+
+\section*{Limitations}
+
+The experiments use a single base model, Qwen2-1.5B, and one processed True-False statement dataset. The task is binary and statement-level, so it is simpler than real user-facing hallucination detection in open-ended generation. Phase 4 attention-fusion results are based on a 600/150/150 subset, not the full dataset; they should be treated as promising evidence rather than a complete generalization result. The anchor extraction rules are simple and may be less reliable for complex syntax. Finally, attention visualizations are diagnostic evidence only. They help explain model behavior but do not establish causal mechanisms.
+
+\section*{Acknowledgments}
+
+This report was prepared as a course project on probing hallucination signals from large language model internal states.
+
+\bibliography{custom}
+
+\appendix
+
+\section{Domain Statistics}
+\label{app:domains}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Domain & Train & Validation & Test \\
+\midrule
+Animals & 806 & 102 & 100 \\
+Cities & 1152 & 144 & 144 \\
+Companies & 960 & 120 & 120 \\
+Elements & 744 & 92 & 94 \\
+Facts & 489 & 61 & 61 \\
+Generated & 194 & 25 & 25 \\
+Inventions & 702 & 87 & 87 \\
+\bottomrule
+\end{tabular}
+\caption{Domain counts in the processed split.}
+\label{tab:domains}
+\end{table}
+
+\section{Additional Phase 4 Visualizations}
+\label{app:phase4}
+
+\begin{figure*}[p]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/method_auroc_comparison.png}
+\caption{Phase 4 subset AUROC comparison. A8 reaches the highest AUROC among the tested fusion variants.}
+\label{fig:phase4-auroc}
+\end{figure*}
+
+\begin{figure*}[p]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/layer_head_auroc_heatmap.png}
+\caption{Validation AUROC heatmap for attention-score heads. The best single head is L16-H05.}
+\label{fig:head-heatmap}
+\end{figure*}
+
+\section{A6 Improvement Case}
+\label{app:cases}
+
+\begin{figure*}[p]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/improvement_case_l16_h5_1.png}
+\caption{Representative improvement case for A6. The statement is true, the hidden-only classifier predicts false, and A6 predicts true.}
+\label{fig:improvement-case}
+\end{figure*}
+
+\section{Reproducibility Notes}
+\label{app:repro}
+
+The main result source is \texttt{scripts/show\_results.py}. The report figures were copied from \texttt{experiments/results/} into \texttt{report/figures/} so that the TeX project is self-contained for online compilation. Key archived result files include \texttt{baseline/ppl\_results.json}, \texttt{baseline/saplma\_logistic\_results.json}, \texttt{baseline/saplma\_mlp\_results\_rerun\_best.json}, \texttt{analysis/layer\_analysis\_logistic\_last.json}, \texttt{analysis/token\_analysis\_logistic\_last\_layer.json}, and \texttt{phase4/phase4\_main\_results.csv}.
+
+\end{document}
