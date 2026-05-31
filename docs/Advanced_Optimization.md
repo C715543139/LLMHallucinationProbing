@@ -1,6 +1,6 @@
 # Advanced_Optimization：Phase 4 进阶方案分析、实现思路与结果总结
 
-> 更新时间：2026-05-19  
+> 更新时间：2026-05-31
 > 项目：利用大语言模型内部状态进行幻觉检测  
 > 对应阶段：Phase 4  
 > 当前稳定运行配置：Qwen2-1.5B + eager attention + bfloat16 + Linux + RTX 3090
@@ -150,7 +150,7 @@ Phase 4 复测首先得到的是一个工程结论而不是性能结论：Linux 
 
 | 方法 | 数据范围 | Test Acc | Test Macro-F1 | Test AUROC |
 | ---- | -------- | -------- | ------------- | ---------- |
-| Phase 3: layer 17 + last + logistic | 全量 | 0.7987 | 0.7986 | 0.8878 |
+| Phase 3: layer 17 + last + logistic | 全量 | 0.8003 | 0.8001 | 0.8876 |
 | Phase 4: hidden-only (A0) | 全量 | 0.8082 | 0.8081 | 0.8897 |
 
 这表明当前稳定配置既解决了 NaN，也保住了 hidden baseline，并在当前复跑中略优于历史 Phase 3 结果。
@@ -170,14 +170,28 @@ Phase 4 复测首先得到的是一个工程结论而不是性能结论：Linux 
 | A8 | Hidden + top-head + output | 0.8800 | 0.8798 | 0.9403 | 最佳 AUROC |
 | A9 | Gated Fusion | 0.8667 | 0.8661 | 0.9193 | 无净纠错收益 |
 
-### 5.4 如何理解这些结果
+### 5.4 A6 样本级修正与案例可视化
 
-从当前结果看，Phase 4 最重要的结论有四条：
+为了检查 A6 的收益是否只来自总体统计波动，项目补充生成了 `experiments/results/phase4/a6_case_analysis.csv` 与 `a6_correction_matrix.json`。在 150 条测试子集上，A6 与 hidden-only 的逐样本修正关系如下：
+
+|  | A6 Correct | A6 Wrong |
+| -- | --------- | -------- |
+| Hidden Correct | 129 | 1 |
+| Hidden Wrong | 4 | 16 |
+
+因此 A6 的净修正为 **+3**：它纠正了 4 个 hidden-only 错误，同时引入 1 个退化样本。该结果补充说明，top-head attention score 的收益不仅体现在 Accuracy 从 0.8667 到 0.8867 的总体提升，也体现在部分具体样本的决策翻转上。
+
+同时，项目基于验证集最强 head `L16-H05` 生成了 attention case 可视化，输出到 `experiments/results/phase4/case_viz/`。这些图展示了 last token 在选定 head 上对 subject / relation / tail token 的注意力分布，并覆盖 true correct、false correct、hard/failure 与 improvement case。案例图只作为定性解释材料，最终有效性判断仍以 A0-A9 消融、A6 correction matrix 和全量 hidden baseline 为准。
+
+### 5.5 如何理解这些结果
+
+从当前结果看，Phase 4 最重要的结论有五条：
 
 1. **attention score 不是噪声**：A2 远高于随机水平，说明在 NaN 消失后，attention score 本身就包含真假判别信号；
 2. **head selection 是有效的**：A6 优于 A5，说明筛选高价值 head 比简单拼接全部 attention 统计更有效；
 3. **attention output 更偏排序信号**：A7 与 A8 的 AUROC 提升明显，但 Accuracy 不如 A6，说明 output 更适合作为补充排序信息；
-4. **复杂路由不一定优于直接融合**：A9 没有带来净纠错，说明当前简单 gated fusion 还不足以替代直接特征拼接。
+4. **A6 存在样本级净修正**：A6 在测试子集上净修正 +3，说明 top-head attention 融合确实纠正了一部分 hidden-only 错误；
+5. **复杂路由不一定优于直接融合**：A9 没有带来净纠错，说明当前简单 gated fusion 还不足以替代直接特征拼接。
 
 换言之，当前 Phase 4 的最优实践不是“尽可能多加特征”，而是“在稳定数值路径上，保留高价值 top-head score，再与 hidden baseline 做受控融合”。
 
@@ -191,7 +205,8 @@ Phase 4 复测首先得到的是一个工程结论而不是性能结论：Linux 
 2. hidden state 仍然是主判别特征，但 attention score 可以提供稳定互补；
 3. top-head attention 融合给出当前最佳 Accuracy / F1；
 4. attention output 更适合作为 AUROC 增强信号，而不是独立决策器；
-5. gated fusion 在当前设置下没有形成额外净收益。
+5. A6 的样本级修正矩阵显示 top-head attention 能纠正部分 hidden-only 错误；
+6. gated fusion 在当前设置下没有形成额外净收益。
 
 ### 6.2 后续更值得推进的方向
 
@@ -201,7 +216,7 @@ Phase 4 复测首先得到的是一个工程结论而不是性能结论：Linux 
 2. 在更多模型上复现“中后层 hidden + top-head score”这一组合；
 3. 为 anchor 抽取引入更稳健的句法或语义对齐机制；
 4. 探索比当前 gated fusion 更强的校准式路由与错误修正策略；
-5. 将数值稳定性诊断、错误案例与图表进一步整理为正式论文写作材料。
+5. 将 A6 correction matrix、PPL 分布图、attention case 可视化和 Phase 4 方法对比图整理进正式报告与答辩材料。
 
 ---
 

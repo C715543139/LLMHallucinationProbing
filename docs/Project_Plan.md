@@ -34,7 +34,7 @@
 - **层分析约定**：层分析统一以 Transformer block 输出为统计对象，不将 embedding output 计入层号；层索引通过 `model.config.num_hidden_layers` 动态获取，不硬编码具体数值
 - **Subject token 提取**：若实验中需要定位主语实体，优先使用依存句法或 noun chunk 规则抽取句首主语短语；对于能够稳定识别的命名实体样本，可辅以 NER 工具（如 spaCy）做对齐检查。若自动解析不可靠，则退化为手工规则，并仅在报告中标注结果。Subject token 分析作为可选项，保底至少比较 First token、Last token 与 Mean pooling
 
-### 1.4 当前实现同步（截至 2026-05-19）
+### 1.4 当前实现同步（截至 2026-05-31）
 
 结合当前工作区中的真实代码与目录结构，项目当前状态如下：
 
@@ -44,6 +44,7 @@
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
 - **Phase 4 已完成核心实现与复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地，结果已同步写入 `experiments/results/phase4/`、`docs/Report.md` 与 `docs/Advanced_Optimization.md`
+- **Phase 5 报告资产已补齐**：已生成 PPL 分布图、Phase 4 方法对比图、layer-head AUROC heatmap、A6 逐样本修正矩阵与 attention case 可视化，资产清单见 `experiments/results/report_assets_manifest.md`
 - **数值稳定路径已切换**：Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；当前默认稳定路径为 `bfloat16 + eager attention`，并已在 `src/config.py` 中作为主配置同步
 - **CLI 与脚本结构已收敛**：`main.py` 已改为纯命令分发器；通用命令位于 `scripts/commands/`，阶段运行脚本位于 `scripts/run/`
 - **项目主体实验已基本完成**：当前剩余工作主要集中在 README / 计划文档等工程与文档收尾，而不是 Phase 2-4 主体实验逻辑补齐
@@ -702,7 +703,7 @@ LLMHallucinationProbing/
 
 | 对比维度   | PPL 方法                  | SAPLMA 方法                         |
 | ---------- | ------------------------- | ----------------------------------- |
-| 检测准确率 | Test Accuracy = 0.5293    | 最优观测配置 Test Accuracy = 0.7987 |
+| 检测准确率 | Test Accuracy = 0.5293    | 最优观测配置 Test Accuracy = 0.8003 |
 | 受句长影响 | 较大（长句 PPL 天然偏高） | 较小                                |
 | 受词频影响 | 较大                      | 较小                                |
 | 计算开销   | 低                        | 中（需存储隐藏状态）                |
@@ -716,8 +717,8 @@ LLMHallucinationProbing/
 - `scripts/run/phase3.py` 已作为 Phase 3 主脚本落地，`main.py` 通过分发器提供 `phase3`、`phase3-layer` 与 `phase3-token` 兼容入口
 - `tests/phase3/` 已建立，对层分析、token 分析、可视化接口和小规模真实模型路径进行验收
 - `experiments/results/analysis/` 已生成 `layer_analysis_logistic_last.json`、`token_analysis_logistic_last_layer.json`、`layer_accuracy_curve.png` 与 `token_accuracy_comparison.png`
-- 当前已观察到的最佳层为 `layer 17`，在 `last` token + logistic 配置下测试集 Accuracy 为 0.7987、Macro-F1 为 0.7986、AUROC 为 0.8878
-- 在最后层固定设置下，`last pooling` 的测试集 Accuracy 为 0.7433，高于 `mean pooling` 的 0.7021 与 `first pooling` 的 0.3867
+- 当前已观察到的验证集最优层为 `layer 17`，在 `last` token + logistic 配置下测试集 Accuracy 为 0.8003、Macro-F1 为 0.8001、AUROC 为 0.8876
+- 在最后层固定设置下，`last pooling` 的测试集 Accuracy 为 0.7496，高于 `mean pooling` 的 0.7052 与 `first pooling` 的 0.4200
 - `docs/Report.md` 已同步写入 Phase 3 结果、讨论与结论，Phase 3 可视为已完成收尾
 
 **结论**：Phase 3 已达到计划中的分析与收尾目标，可以正式作为 Phase 4 的起点。
@@ -768,7 +769,7 @@ LLMHallucinationProbing/
 
 - 除 attention score 外，Phase 4 还提取 attention module output activation 的统计特征，作为对 hidden baseline 的补充内部信号
 - 最终统一比较 A0-A9 十组实验：hidden-only、score-only、output-only、hidden+score、hidden+top-head、hidden+output、三路融合与 gated fusion
-- `src/analysis/phase4_analysis.py` 负责生成方法对比图、特征差异图与 correction matrix；错误分析结果写入 `phase4_error_analysis.csv`
+- `src/analysis/phase4_analysis.py` 负责生成方法对比图、layer-head heatmap 与 correction matrix；错误分析结果写入 `phase4_error_analysis.csv`，A6 逐样本分析写入 `a6_case_analysis.csv`
 - 当前主结论是：`hidden + top-16 head attention score` 获得最佳 Accuracy / Macro-F1，而 `hidden + top-head + output` 获得最佳 AUROC；gated fusion 在本轮复跑中没有带来净纠错
 
 **里程碑 M4**: 已完成基于注意力分数与 attention output activation 的进阶特征实现、对比实验、错误分析与图表生成，并确认 `bfloat16 + eager attention` 为当前环境下的稳定运行路径。
@@ -778,7 +779,7 @@ LLMHallucinationProbing/
 - `src/features/anchor_extraction.py`、`attention_scores.py`、`attention_outputs.py`、`src/methods/phase4_attention.py`、`src/analysis/phase4_analysis.py` 与 `src/utils/feature_cache.py` 已全部落地
 - `scripts/run/phase4.py` 已作为 Phase 4 主脚本落地，`main.py` 通过分发器提供 `phase4`、`phase4-cache-hidden`、`phase4-hidden-baseline`、`phase4-extract-attention-scores`、`phase4-extract-attention-outputs`、`phase4-select-heads`、`phase4-ablation` 与 `phase4-visualize` 入口
 - `tests/phase4/` 已建立并通过，覆盖 anchor 抽取、attention score / output 特征、去偏、head selection 与整条 pipeline
-- `experiments/results/phase4/` 已生成 hidden baseline、head selection、feature summary、ablation results、error analysis 与 figures 等 Phase 4 产物
+- `experiments/results/phase4/` 已生成 hidden baseline、head selection、feature summary、ablation results、error analysis、A6 correction matrix、case visualization 与 figures 等 Phase 4 产物
 - 全量 hidden baseline（A0）在当前 Linux + bfloat16 路径下达到：Test Accuracy = `0.8082`、Macro-F1 = `0.8081`、AUROC = `0.8897`
 - 子集消融中，A6 `Hidden + top-16 head attention` 取得当前最佳 Accuracy / Macro-F1：`0.8867 / 0.8865`；A8 `Hidden + top-head + output` 取得最佳 AUROC：`0.9403`
 - NaN 问题已通过切换到 `bfloat16 + eager` 实际解决；attention score / output 新缓存中的 NaN 计数为 0
@@ -787,7 +788,7 @@ LLMHallucinationProbing/
 
 ---
 
-### Phase 5：报告撰写与答辩准备（5-6 天）| 6.5 – 6.11 ｜**当前状态：待实现**
+### Phase 5：报告撰写与答辩准备（5-6 天）| 6.5 – 6.11 ｜**当前状态：进行中，报告资产已补齐**
 
 | 编号 | 任务                          | 输出物       |
 | ---- | ----------------------------- | ------------ |
@@ -799,6 +800,15 @@ LLMHallucinationProbing/
 | P5.6 | 代码清理、注释、README 完善   | 可复现代码   |
 | P5.7 | 制作答辩 PPT                  | 答辩材料     |
 | P5.8 | 模拟答辩，内部预演            | 反馈改进     |
+
+**当前 Phase 5 已完成资产**：
+
+- `experiments/results/baseline/ppl_score_distribution.png`：PPL 真/假分布图
+- `experiments/results/phase4/figures/layer_head_auroc_heatmap.png`：layer-head AUROC heatmap
+- `experiments/results/phase4/figures/method_accuracy_comparison.png` 与 `method_auroc_comparison.png`：Phase 4 方法对比图
+- `experiments/results/phase4/a6_case_analysis.csv` 与 `a6_correction_matrix.json`：A6 vs hidden-only 逐样本修正分析
+- `experiments/results/phase4/case_viz/`：基于 `L16-H05` 的 attention case 可视化
+- `experiments/results/report_assets_manifest.md`：报告/PPT 资产清单与使用说明
 
 **报告结构建议**：
 
@@ -836,10 +846,10 @@ LLMHallucinationProbing/
 | F1   | PPL vs SAPLMA 对比表            | 3.1 / 5.1 | Accuracy / Macro-F1 / AUROC 汇总     |
 | F2   | 层深度 vs Accuracy 曲线         | 3.2 / 5.2 | 横轴为层索引，纵轴为分类准确率       |
 | F3   | 不同 token 表示方式的柱状对比图 | 3.2 / 5.2 | First / Last / Mean pooling 效果对比 |
-| F4   | PPL 分数分布直方图（真/假分别） | 3.1 / 5.1 | 展示两类陈述的 PPL 分布重叠程度      |
+| F4   | PPL 分数分布直方图（真/假分别） | 3.1 / 5.1 | 已生成，展示两类陈述的 PPL 分布重叠程度 |
 | F5   | 进阶方法 vs 基线对比表          | 3.3 / 5.3 | 多特征组合的消融实验结果             |
-| F6   | 注意力热力图（真/假陈述对比）   | 3.3 / 5.3 | 选取典型案例可视化注意力差异         |
-| F7   | 错误分析示例表                  | 5.1-5.3   | 列举各类方法的典型失败案例           |
+| F6   | 注意力热力图（真/假陈述对比）   | 3.3 / 5.3 | 已生成，基于 `L16-H05` 展示典型案例 |
+| F7   | 错误分析示例表                  | 5.1-5.3   | 已生成 A6 case analysis 与 correction matrix |
 
 ---
 
