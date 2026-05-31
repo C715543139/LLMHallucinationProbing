@@ -34,6 +34,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ppl_distribution")
 
+PLOT_STYLE = {
+    "font.size": 15,
+    "axes.titlesize": 19,
+    "axes.labelsize": 17,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
+    "legend.fontsize": 14,
+    "figure.titlesize": 20,
+}
+
 from src.config import config
 from src.data.preprocessing import load_processed_data
 from src.models.loader import load_model_fp16
@@ -96,7 +106,8 @@ def main():
     true_ppls = [r["ppl_score"] for r in test_rows if r["label"] == 1]
     false_ppls = [r["ppl_score"] for r in test_rows if r["label"] == 0]
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    plt.rcParams.update(PLOT_STYLE)
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6.2))
 
     # ---- 直方图 ----
     ax = axes[0]
@@ -106,8 +117,9 @@ def main():
     ax.axvline(x=232.43, color="black", linestyle="--", linewidth=1.5, label=f"Threshold=232.43")
     ax.set_xlabel("PPL Score")
     ax.set_ylabel("Count")
+    ax.set_xlim(0, bins[-1])
     ax.set_title("PPL Distribution: True vs False (Test, Histogram)")
-    ax.legend(loc="upper right", fontsize=8)
+    ax.legend(loc="upper right")
     ax.grid(alpha=0.3)
 
     # ---- KDE ----
@@ -124,13 +136,15 @@ def main():
     ax.axvline(x=232.43, color="black", linestyle="--", linewidth=1.5, label="Threshold=232.43")
     ax.set_xlabel("PPL Score")
     ax.set_ylabel("Density")
+    ax.set_xlim(0, bins[-1])
     ax.set_title("PPL Distribution: True vs False (Test, KDE)")
-    ax.legend(loc="upper right", fontsize=8)
+    ax.legend(loc="upper right")
     ax.grid(alpha=0.3)
 
+    fig.suptitle("PPL Distribution: True vs. False Statements", y=1.03)
     fig.tight_layout()
     png_path = out_dir / "ppl_score_distribution.png"
-    fig.savefig(png_path, dpi=200, bbox_inches="tight")
+    fig.savefig(png_path, dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
     logger.info("PPL 分布图已保存至 %s", png_path)
 

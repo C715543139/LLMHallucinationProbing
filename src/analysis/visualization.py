@@ -12,13 +12,23 @@ from src.analysis.layer_analysis import extract_layer_metric_curve
 from src.analysis.token_analysis import extract_token_metric_bars
 
 
+PLOT_STYLE = {
+    "font.size": 14,
+    "axes.titlesize": 18,
+    "axes.labelsize": 16,
+    "xtick.labelsize": 13,
+    "ytick.labelsize": 13,
+    "legend.fontsize": 13,
+}
+
+
 def _finalize_figure(fig, save_path: str | Path | None = None):
     """根据需要保存图像并返回 Figure。"""
     fig.tight_layout()
     if save_path is not None:
         output_path = Path(save_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(output_path, dpi=200, bbox_inches="tight")
+        fig.savefig(output_path, dpi=300, bbox_inches="tight")
     return fig
 
 
@@ -30,13 +40,14 @@ def plot_layer_metric_curve(
     save_path: str | Path | None = None,
 ):
     """绘制层深度-性能曲线。"""
+    plt.rcParams.update(PLOT_STYLE)
     curve = extract_layer_metric_curve(analysis_results, split=split, metric=metric)
     x = np.asarray(curve["layer_indices"], dtype=np.int64)
     means = np.asarray(curve["means"], dtype=np.float64)
     stds = np.asarray(curve["stds"], dtype=np.float64)
 
-    fig, ax = plt.subplots(figsize=(9, 5))
-    ax.plot(x, means, marker="o", linewidth=2)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(x, means, marker="o", linewidth=2.6, markersize=6)
     lower = np.clip(means - stds, 0.0, 1.0)
     upper = np.clip(means + stds, 0.0, 1.0)
     ax.fill_between(x, lower, upper, alpha=0.2)
@@ -55,12 +66,13 @@ def plot_token_metric_comparison(
     save_path: str | Path | None = None,
 ):
     """绘制不同 pooling 策略的性能对比柱状图。"""
+    plt.rcParams.update(PLOT_STYLE)
     bars = extract_token_metric_bars(analysis_results, split=split, metric=metric)
     labels = bars["poolings"]
     means = np.asarray(bars["means"], dtype=np.float64)
     stds = np.asarray(bars["stds"], dtype=np.float64)
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(9, 6))
     positions = np.arange(len(labels))
     ax.bar(positions, means, yerr=stds, capsize=4, alpha=0.85)
     ax.set_xticks(positions)
@@ -79,10 +91,11 @@ def plot_method_comparison(
     save_path: str | Path | None = None,
 ):
     """绘制方法间指标对比图。"""
+    plt.rcParams.update(PLOT_STYLE)
     labels = list(method_metrics.keys())
     values = np.asarray([method_metrics[label][metric] for label in labels], dtype=np.float64)
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(10, 6))
     positions = np.arange(len(labels))
     ax.bar(positions, values, alpha=0.85)
     ax.set_xticks(positions)

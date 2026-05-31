@@ -17,13 +17,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+PLOT_STYLE = {
+    "font.size": 14,
+    "axes.titlesize": 18,
+    "axes.labelsize": 16,
+    "xtick.labelsize": 13,
+    "ytick.labelsize": 13,
+    "legend.fontsize": 13,
+}
+
+
 def _finalize_figure(fig, save_path: str | Path | None = None):
     """保存或返回 Figure。"""
     fig.tight_layout()
     if save_path is not None:
         output_path = Path(save_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(output_path, dpi=200, bbox_inches="tight")
+        fig.savefig(output_path, dpi=300, bbox_inches="tight")
     return fig
 
 
@@ -49,25 +59,36 @@ def plot_layer_head_auroc_heatmap(
         title: 图标题。
         save_path: 保存路径。
     """
+    plt.rcParams.update(PLOT_STYLE)
     if not head_scores:
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.text(0.5, 0.5, "No head scores available", ha="center", va="center")
         return _finalize_figure(fig, save_path), ax
 
     if num_layers is None:
-        num_layers = max(h["layer"] for h in head_scores) + 1
+        min_layer = min(h["layer"] for h in head_scores)
+        max_layer = max(h["layer"] for h in head_scores)
+        layer_labels = list(range(min_layer, max_layer + 1))
+        num_layers = len(layer_labels)
+    else:
+        min_layer = 0
+        layer_labels = list(range(num_layers))
     if num_heads is None:
         num_heads = max(h["head"] for h in head_scores) + 1
 
     # 构建矩阵
     matrix = np.full((num_layers, num_heads), np.nan)
     for h in head_scores:
-        matrix[h["layer"], h["head"]] = h.get(metric, 0.0)
+        row = h["layer"] - min_layer
+        if 0 <= row < num_layers:
+            matrix[row, h["head"]] = h.get(metric, 0.0)
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(14, 6.5))
     im = ax.imshow(matrix, aspect="auto", origin="upper", cmap="RdYlGn", vmin=0.4, vmax=0.9)
     ax.set_xlabel("Head Index")
     ax.set_ylabel("Layer Index")
+    ax.set_yticks(np.arange(len(layer_labels)))
+    ax.set_yticklabels(layer_labels)
     ax.set_title(title or f"Layer × Head {metric.upper()} Heatmap")
     plt.colorbar(im, ax=ax, label=metric.upper())
     return _finalize_figure(fig, save_path), ax
@@ -91,6 +112,7 @@ def plot_feature_delta_boxplot(
         title: 图标题。
         save_path: 保存路径。
     """
+    plt.rcParams.update(PLOT_STYLE)
     if not feature_summary:
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.text(0.5, 0.5, "No feature summary available", ha="center", va="center")
@@ -100,12 +122,12 @@ def plot_feature_delta_boxplot(
     names = [f["feature_name"] for f in top]
     deltas = [f["delta"] for f in top]
 
-    fig, ax = plt.subplots(figsize=(10, max(6, top_n * 0.3)))
+    fig, ax = plt.subplots(figsize=(12, max(7, top_n * 0.35)))
     colors = ["#2ca02c" if d >= 0 else "#d62728" for d in deltas]
     y_pos = range(len(names))
     ax.barh(y_pos, deltas, color=colors, alpha=0.85)
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(names, fontsize=7)
+    ax.set_yticklabels(names, fontsize=10)
     ax.axvline(0, color="black", linewidth=0.5)
     ax.set_xlabel("True Mean - False Mean")
     ax.set_title(title or f"Top {top_n} Feature Differences (True vs False)")
@@ -131,17 +153,18 @@ def plot_method_comparison(
         title: 图标题。
         save_path: 保存路径。
     """
+    plt.rcParams.update(PLOT_STYLE)
     labels = list(method_metrics.keys())
     values = np.asarray(
         [method_metrics[label].get(metric, 0.0) for label in labels],
         dtype=np.float64,
     )
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(13, 6.5))
     positions = np.arange(len(labels))
     bars = ax.bar(positions, values, alpha=0.85)
     ax.set_xticks(positions)
-    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=8)
+    ax.set_xticklabels(labels, rotation=25, ha="right", fontsize=12)
     ax.set_ylim(0.0, 1.0)
     ax.set_ylabel(metric.upper())
     ax.set_title(title or f"Method Comparison ({metric.upper()})")
@@ -155,7 +178,7 @@ def plot_method_comparison(
             f"{val:.3f}",
             ha="center",
             va="bottom",
-            fontsize=7,
+            fontsize=11,
         )
 
     return _finalize_figure(fig, save_path), ax
@@ -201,6 +224,7 @@ def plot_correction_matrix(
     参数:
         correction_data: {"hidden_correct_fusion_correct": n00, ...}
     """
+    plt.rcParams.update(PLOT_STYLE)
     n00 = correction_data.get("hidden_correct_fusion_correct", 0)
     n01 = correction_data.get("hidden_correct_fusion_wrong", 0)
     n10 = correction_data.get("hidden_wrong_fusion_correct", 0)

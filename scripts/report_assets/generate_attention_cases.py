@@ -38,6 +38,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("attention_cases")
 
+PLOT_STYLE = {
+    "font.size": 14,
+    "axes.titlesize": 17,
+    "axes.labelsize": 15,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
+    "legend.fontsize": 12,
+    "figure.titlesize": 17,
+}
+
 
 def load_model_eager():
     """加载 bfloat16 + eager attention 模型。"""
@@ -144,7 +154,8 @@ def plot_attention_case(
     # last token attending to all previous tokens
     last_attn = attn_matrix[-1, :]  # (seq_len,)
 
-    fig, axes = plt.subplots(2, 1, figsize=(14, 8),
+    plt.rcParams.update(PLOT_STYLE)
+    fig, axes = plt.subplots(2, 1, figsize=(16, 10),
                               gridspec_kw={"height_ratios": [1, 3]})
 
     # ---- 上半: bar heatmap of last-token attention ----
@@ -179,7 +190,7 @@ def plot_attention_case(
         Patch(facecolor="#d62728", label="Last Token"),
         Patch(facecolor="#aaaaaa", label="Other"),
     ]
-    ax.legend(handles=legend_elements, loc="upper right", fontsize=7, ncol=5)
+    ax.legend(handles=legend_elements, loc="upper right", ncol=5)
 
     # ---- 下半: full attention matrix heatmap ----
     ax = axes[1]
@@ -216,10 +227,10 @@ def plot_attention_case(
         f"A6: {a6_prob_str} ({a6_pred_str})\n"
         f"Description: {description}"
     )
-    fig.suptitle(info_text, fontsize=9, y=1.02, va="bottom")
+    fig.suptitle(info_text, fontsize=13, y=1.02, va="bottom")
 
     fig.tight_layout()
-    fig.savefig(save_path, dpi=200, bbox_inches="tight")
+    fig.savefig(save_path, dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
     logger.info("已保存: %s", save_path)
 
