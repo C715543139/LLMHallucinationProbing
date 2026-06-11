@@ -30,7 +30,7 @@
     "last_token_index": 11,
     "rule_name": "copula",
     "valid": true,
-    "description": "Both correct. True statement, both hidden and A6 correct.",
+    "description": "Both correct. True statement, both hidden and the attention-guided diagnostic variant are correct.",
     "image_path": "experiments/results/phase4/case_viz/true_correct_case_l15_h6_1.png"
   },
   {
@@ -57,7 +57,7 @@
     "last_token_index": 9,
     "rule_name": "fallback",
     "valid": true,
-    "description": "Both correct. True statement, both hidden and A6 correct.",
+    "description": "Both correct. True statement, both hidden and the attention-guided diagnostic variant are correct.",
     "image_path": "experiments/results/phase4/case_viz/true_correct_case_l15_h6_2.png"
   },
   {
@@ -101,7 +101,7 @@
     "last_token_index": 21,
     "rule_name": "copula",
     "valid": true,
-    "description": "Both correct. True statement, both hidden and A6 correct.",
+    "description": "Both correct. True statement, both hidden and the attention-guided diagnostic variant are correct.",
     "image_path": "experiments/results/phase4/case_viz/true_correct_case_l15_h6_3.png"
   },
   {
@@ -129,7 +129,7 @@
     "last_token_index": 10,
     "rule_name": "fallback",
     "valid": true,
-    "description": "Both correct. False statement, both hidden and A6 correct.",
+    "description": "Both correct. False statement, both hidden and the attention-guided diagnostic variant are correct.",
     "image_path": "experiments/results/phase4/case_viz/false_correct_case_l15_h6_1.png"
   },
   {
@@ -163,7 +163,7 @@
     "last_token_index": 11,
     "rule_name": "copula",
     "valid": true,
-    "description": "Both correct. False statement, both hidden and A6 correct.",
+    "description": "Both correct. False statement, both hidden and the attention-guided diagnostic variant are correct.",
     "image_path": "experiments/results/phase4/case_viz/false_correct_case_l15_h6_2.png"
   },
   {
@@ -211,7 +211,7 @@
     "last_token_index": 25,
     "rule_name": "copula",
     "valid": true,
-    "description": "Both correct. False statement, both hidden and A6 correct.",
+    "description": "Both correct. False statement, both hidden and the attention-guided diagnostic variant are correct.",
     "image_path": "experiments/results/phase4/case_viz/false_correct_case_l15_h6_3.png"
   },
   {
@@ -241,7 +241,7 @@
     "last_token_index": 9,
     "rule_name": "fallback",
     "valid": true,
-    "description": "Hidden correct, A6 wrong. Attention features degraded performance.",
+    "description": "Hidden correct, attention-guided diagnostic variant wrong. Attention features degraded performance.",
     "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l15_h6_1.png"
   },
   {
@@ -276,7 +276,7 @@
     "last_token_index": 12,
     "rule_name": "copula",
     "valid": true,
-    "description": "Hidden correct, A6 wrong. Attention features degraded performance.",
+    "description": "Hidden correct, attention-guided diagnostic variant wrong. Attention features degraded performance.",
     "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l15_h6_2.png"
   },
   {
@@ -308,7 +308,7 @@
     "last_token_index": 9,
     "rule_name": "copula",
     "valid": true,
-    "description": "Hidden correct, A6 wrong. Attention features degraded performance.",
+    "description": "Hidden correct, attention-guided diagnostic variant wrong. Attention features degraded performance.",
     "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l15_h6_3.png"
   },
   {
@@ -339,7 +339,7 @@
     "last_token_index": 8,
     "rule_name": "copula",
     "valid": true,
-    "description": "Hidden correct, A6 wrong. Attention features degraded performance.",
+    "description": "Hidden correct, attention-guided diagnostic variant wrong. Attention features degraded performance.",
     "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l15_h6_4.png"
   },
   {
@@ -373,7 +373,7 @@
     "last_token_index": 11,
     "rule_name": "copula",
     "valid": true,
-    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "description": "Improvement: hidden wrong, attention-guided diagnostic variant correct.",
     "image_path": "experiments/results/phase4/case_viz/hard_or_failure_case_l15_h6_5.png"
   },
   {
@@ -403,7 +403,7 @@
     "last_token_index": 12,
     "rule_name": "fallback",
     "valid": true,
-    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "description": "Improvement: hidden wrong, attention-guided diagnostic variant correct.",
     "image_path": "experiments/results/phase4/case_viz/improvement_case_l15_h6_1.png"
   },
   {
@@ -437,7 +437,7 @@
     "last_token_index": 11,
     "rule_name": "copula",
     "valid": true,
-    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "description": "Improvement: hidden wrong, attention-guided diagnostic variant correct.",
     "image_path": "experiments/results/phase4/case_viz/improvement_case_l15_h6_2.png"
   },
   {
@@ -467,7 +467,7 @@
     "last_token_index": 7,
     "rule_name": "copula",
     "valid": true,
-    "description": "Improvement: hidden wrong, A6 correct. A6 fusion successfully corrected the hidden-only error.",
+    "description": "Improvement: hidden wrong, attention-guided diagnostic variant correct.",
     "image_path": "experiments/results/phase4/case_viz/improvement_case_l15_h6_3.png"
   }
 ]

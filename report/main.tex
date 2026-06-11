@@ -25,7 +25,7 @@
 \maketitle
 
 \begin{abstract}
-Hallucination detection is often treated as an output-level problem, but a language model may already encode evidence about factual correctness in its internal activations. This report studies binary factuality detection on a True-False statement dataset using Qwen2-1.5B. We compare a perplexity baseline with SAPLMA-style hidden-state probes, analyze which layers and token positions expose the strongest signal, and evaluate attention-guided feature extensions. Perplexity provides weak but non-random evidence, reaching 52.93\% accuracy and 0.6784 AUROC on the test set. Hidden-state probing is much stronger: a final-layer logistic probe reaches 74.96\% accuracy and 0.8265 AUROC, while an MLP probe reaches 77.71\% accuracy and 0.8770 AUROC. Layer analysis further shows that factuality signals are strongest in middle-to-late layers rather than at the final layer; the validation-selected layer 17 reaches 80.03\% accuracy and 0.8876 AUROC. On a Phase 4 subset, adding top-head attention features improves the hidden-only subset baseline from 86.67\% to 88.67\% accuracy, while a hidden-attention-output fusion reaches 0.9403 AUROC. These results support the view that internal states provide more reliable hallucination signals than output likelihood alone, and that selected attention features offer useful complementary evidence.
+Hallucination detection is often treated as an output-level problem, but a language model may already encode evidence about factual correctness in its internal activations. This report studies binary factuality detection on a True-False statement dataset using Qwen2-1.5B. We compare a perplexity baseline with SAPLMA-style hidden-state probes, analyze which layers and token positions expose the strongest signal, and evaluate attention-guided feature extensions. Perplexity provides weak but non-random evidence, reaching 52.93\% accuracy and 0.6784 AUROC on the test set. Hidden-state probing is much stronger: a final-layer logistic probe reaches 74.96\% accuracy and 0.8265 AUROC, while an MLP probe reaches 77.71\% accuracy and 0.8770 AUROC. Layer analysis further shows that factuality signals concentrate in middle-to-late layers; the validation-selected layer 17 reaches 80.03\% accuracy and 0.8876 AUROC. Full Phase 4 ablation shows that debiased attention-score-only features (A2) reach 81.93\% accuracy, 81.93\% macro-F1, and 0.9010 AUROC, making A2 the strongest attention-guided variant in the A0-A9 comparison. These results support the view that internal states provide more reliable hallucination signals than output likelihood alone, and that attention scores themselves provide strong factuality evidence.
 \end{abstract}
 
 \section{Introduction}
@@ -41,8 +41,8 @@ Our contributions are:
 \begin{itemize}
   \item We implement and compare PPL and SAPLMA-style hidden-state probes under a fixed train/validation/test split.
   \item We analyze layer depth and token pooling, showing that middle-to-late layers and last-token representations are substantially more informative.
-  \item We design attention-guided extensions based on statement anchors, attention scores, head selection, attention outputs, and feature fusion.
-  \item We provide quantitative ablations and case-level visualizations showing when attention features correct hidden-only errors.
+  \item We design attention-guided extensions based on statement anchors, attention scores, head selection, attention outputs, feature fusion, and gated routing.
+  \item We provide full A0-A9 ablations, case-level error analysis, and visualizations showing which attention-derived signals are effective and which complex fusion paths have limited full-data gains.
 \end{itemize}
 
 \section{Related Work}
@@ -51,13 +51,13 @@ Our contributions are:
 Hallucination in natural language generation refers to generated content that is fluent but unsupported, inconsistent, or factually incorrect \citep{ji2023survey}. Benchmarks such as HaluEval evaluate hallucination behavior across tasks and model outputs \citep{li2023halueval}. Many applied systems address hallucination using retrieval, external fact checking, or post-hoc verification. These approaches are valuable, but they rely on external evidence sources and do not directly answer whether the model's own computation contains a factuality signal.
 
 \paragraph{Likelihood and uncertainty signals.}
-A natural internal baseline is likelihood. If a model assigns lower loss to true statements than to false statements, sequence probability or PPL can be used as a detector. However, likelihood is affected by frequency, style, surface fluency, and length. A false but familiar-sounding statement may have low PPL, while a true but rare statement may have high PPL. For this reason, likelihood is best treated as a baseline rather than a complete factuality measure.
+A natural internal baseline is likelihood. If a model assigns lower loss to true statements than to false statements, sequence probability or PPL can be used as a detector. However, likelihood is affected by frequency, style, surface fluency, and length. A false but familiar-sounding statement may have low PPL, while a true but rare statement may have high PPL. For this reason, likelihood is best treated as a baseline factuality signal.
 
 \paragraph{Probing internal representations.}
 The internal-state view is motivated by work showing that truthfulness and latent knowledge can be extracted from model activations \citep{azaria2023internal,burns2022discovering}. Instead of asking whether the model's next-token probabilities directly reveal truth, probing asks whether hidden states contain a representation from which truth can be predicted. This report adopts that framing through SAPLMA-style classifiers over frozen Qwen2-1.5B activations.
 
 \paragraph{Attention as diagnostic signal.}
-Transformer attention \citep{vaswani2017attention} is not a complete causal explanation of model behavior, but it can expose structured interactions between tokens. Our advanced experiments use attention not as a standalone explanation, but as a feature family: attention mass from the last token to statement anchors, validation-selected heads, and attention-output activations are tested as complementary signals to hidden states.
+Transformer attention \citep{vaswani2017attention} can expose structured interactions between tokens. Our advanced experiments use attention as a feature family: attention mass from the last token to statement anchors, validation-selected heads, and attention-output activations are tested as signals for factuality detection.
 
 \section{Task and Experimental Setup}
 
@@ -65,11 +65,11 @@ Transformer attention \citep{vaswani2017attention} is not a complete causal expl
 
 Each example is a declarative statement \(x\) with a binary label \(y \in \{0,1\}\), where \(1\) denotes a true statement and \(0\) denotes a false statement. A detector receives the statement and outputs both a binary prediction and a continuous score. The continuous score is used for AUROC, while the binary prediction is used for accuracy and macro-F1.
 
-This setting differs from open-ended answer generation. We do not first ask the model to generate a response and then verify it. Instead, we probe whether the model's internal computation over a given statement separates factual from non-factual inputs.
+This setting uses statement-level probing: we directly test whether the model's internal computation over a given statement separates factual from non-factual inputs.
 
 \subsection{Dataset}
 
-The processed dataset contains 6,309 effective examples from seven CSV sources: animals, cities, companies, chemical elements, scientific facts, inventions, and an additional generated subset. The first six domains match the course task description; the generated subset is included in the current project configuration. The split is fixed at 8:1:1 and stratified by domain and label.
+The processed dataset contains 6,309 effective examples from seven CSV sources: animals, cities, companies, chemical elements, scientific facts, inventions, and an additional generated subset. The first six domains match the course task description; the generated subset is included in the current project configuration. All main results are reported on the fixed split that includes the generated subset, and this extension preserves the six-domain core of the course dataset. The split is fixed at 8:1:1 and stratified by domain and label.
 
 \begin{table}[t]
 \centering
@@ -125,9 +125,11 @@ Layer analysis trains one logistic probe per Transformer block using last-token 
 
 \subsection{Attention-Guided Extensions}
 
-The advanced method family tests whether attention contributes information not already present in hidden states. Because the dataset consists of statements rather than question-answer pairs, we do not use answer-to-question attention. Instead, each statement is mapped to simple anchors: subject tokens, relation tokens, tail tokens, and the final valid token. For each layer and head, we summarize attention from the last token to these anchors.
+The advanced method family tests whether attention contributes useful factuality information. The dataset consists of statements, so each statement is mapped to simple anchors: subject tokens, relation tokens, tail tokens, and the final valid token. These anchors approximate the entity, relation, and tail evidence that a statement-level detector should inspect. For each layer and head, we summarize attention from the last token to these anchors.
 
-We evaluate several feature families. Raw attention-score features are computed for all candidate heads. Debiased attention features remove length-related effects through residualization. Top-head features keep the heads with the strongest validation AUROC. Attention-output features summarize selected attention output activations. Fusion methods concatenate these features with the hidden-state baseline or use a gated decision rule. The main variants are A0/A0s through A9, where A0 is the full hidden-only baseline, A0s is the subset hidden-only baseline, and A6/A8 are the strongest attention-enhanced variants.
+We evaluate several feature families. Raw attention-score features are computed for all candidate heads to test whether attention patterns carry a direct factuality signal. Debiased attention features remove length-related effects through residualization, because raw attention statistics can be confounded by sequence length and anchor count. Top-head features keep the heads with the strongest validation AUROC, testing whether validation-based head selection can reduce noisy dimensions. Attention-output features summarize selected attention output activations, capturing what the attention module writes back into the residual stream. Fusion methods concatenate these features with the hidden-state baseline or use a gated decision rule, testing whether hidden and attention signals are complementary at prediction time. The main variants are A0/A0s through A9, where A0/A0s are hidden-only baselines, A2 is the strongest full-data A0-A9 attention-guided variant, and A6/A8/A9 test top-head fusion, attention-output fusion, and gated routing.
+
+This design keeps an exploration ladder from simple to complex uses of attention. A1/A2 test attention scores directly, A3/A6 test head selection, A4/A7 test attention-output activations, A5/A8 test feature concatenation, and A9 tests gated routing. This structure identifies the strongest A0-A9 attention-guided variant and the boundary cases where additional feature complexity does not improve full-data results.
 
 \section{Results and Analysis}
 
@@ -164,7 +166,7 @@ These results support the first central claim: output likelihood alone is not en
 
 \subsection{Layer-Wise Analysis}
 
-Table~\ref{tab:layers} reports representative layers from the Phase 3 layer sweep. Layer 0 is nearly random, while middle-to-late layers perform strongly. Layer 17 is the validation-selected layer and reaches 80.03\% accuracy and 0.8876 AUROC on the test set. Some neighboring layers, such as layers 15 and 20, have higher test AUROC, so we avoid claiming that layer 17 is the absolute best test layer. The more robust conclusion is that the strongest region is a middle-to-late layer band rather than the final layer alone.
+Table~\ref{tab:layers} reports representative layers from the Phase 3 layer sweep. Layer 0 is nearly random, while middle-to-late layers perform strongly. Layer 17 is the validation-selected layer and reaches 80.03\% accuracy and 0.8876 AUROC on the test set. Some neighboring layers, such as layers 15 and 20, have higher test AUROC, so layer 17 should be described as the validation-selected operating layer. The robust conclusion is that the strongest region is a middle-to-late layer band, with a clear final-layer drop.
 
 \begin{table}[t]
 \centering
@@ -225,7 +227,7 @@ This result matches the causal structure of autoregressive models. The final val
 
 \subsection{Attention Feature Ablation}
 
-Phase 4 evaluates attention features on a 600/150/150 train/validation/test subset. This subset restriction is important: the attention-fusion improvements should not be described as full-dataset results. Table~\ref{tab:phase4} summarizes the main ablation.
+Phase 4 evaluates attention features on the full 5,047/631/631 train/validation/test split. Table~\ref{tab:phase4} summarizes the A0-A9 ablation.
 
 \begin{table*}[t]
 \centering
@@ -236,53 +238,53 @@ Phase 4 evaluates attention features on a 600/150/150 train/validation/test subs
 ID & Feature family & Dim. & Accuracy & Macro-F1 & AUROC \\
 \midrule
 A0 & Hidden-only, full data & 1536 & 80.82 & 80.81 & 88.97 \\
-A0s & Hidden-only, subset & 1536 & 86.67 & 86.61 & 91.84 \\
-A1 & Raw attn. score only & 1536 & 76.67 & 76.54 & 82.89 \\
-A2 & Debiased attn. score only & 1536 & 77.33 & 77.13 & 82.85 \\
-A3 & Top-16-head attn. score only & 256 & 76.00 & 75.65 & 79.34 \\
-A4 & Attn. output only & 40 & 68.00 & 68.00 & 74.93 \\
-A5 & Hidden + debiased attn. score & 3072 & 87.33 & 87.29 & 93.02 \\
-A6 & Hidden + top-16-head attn. & 1792 & 88.67 & 88.65 & 93.30 \\
-A7 & Hidden + attn. output & 1576 & 84.67 & 84.63 & 92.54 \\
-A8 & Hidden + top-head + output & 1832 & 88.00 & 87.98 & 94.03 \\
-A9 & Gated fusion, \(\tau=0.05\) & -- & 86.67 & 86.61 & 91.93 \\
+A0s & Hidden-only, attention-aligned & 1536 & 80.82 & 80.81 & 88.97 \\
+A1 & Raw attn. score only & 1536 & 81.46 & 81.46 & 90.03 \\
+A2 & Debiased attn. score only & 1536 & 81.93 & 81.93 & 90.10 \\
+A3 & Top-16-head attn. score only & 256 & 71.00 & 70.99 & 80.72 \\
+A4 & Attn. output only & 40 & 67.51 & 67.51 & 72.10 \\
+A5 & Hidden + debiased attn. score & 3072 & 80.51 & 80.50 & 89.63 \\
+A6 & Hidden + top-16-head attn. & 1792 & 80.03 & 80.03 & 88.20 \\
+A7 & Hidden + attn. output & 1576 & 81.14 & 81.13 & 89.06 \\
+A8 & Hidden + top-head + output & 1832 & 79.71 & 79.71 & 88.43 \\
+A9 & Gated fusion, \(\tau=0.15\) & -- & 81.30 & 81.29 & 89.03 \\
 \bottomrule
 \end{tabularx}
-\caption{Phase 4 ablation results. A0 is the full hidden-only baseline; A0s-A9 use the 600/150/150 subset. Values are percentages.}
+\caption{Full Phase 4 ablation results. A2 debiased attention-score-only features give the best accuracy, macro-F1, and AUROC among the A0-A9 attention-guided variants. A0s is retained as an attention-aligned hidden baseline; full attention extraction covers the full split, so A0s matches A0. Values are percentages.}
 \label{tab:phase4}
 \end{table*}
 
-Attention score features alone are useful, with A1 and A2 well above random. However, attention is most effective when used as a complement to hidden states. A5 improves over A0s by adding debiased attention scores. A6, which uses hidden features plus validation-selected top-16 attention heads, reaches the best accuracy and macro-F1: 88.67\% and 88.65\%. A8 reaches the best AUROC at 0.9403, suggesting that attention output features improve ranking even when their thresholded accuracy is slightly below A6.
+Attention score features alone are strong. A1 and A2 both exceed the hidden-only baseline, and debiasing further improves A1. A2 reaches the best accuracy, macro-F1, and AUROC among the A0-A9 attention-guided variants. The fusion variants A5/A6/A8 score lower than A2, indicating that head selection and multi-feature concatenation introduce additional noise or overfitting risk in this setting. A9 gives a small sample-level correction effect, while its aggregate metrics remain below A2.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.86\textwidth]{figures/method_accuracy_comparison.png}
-\caption{Phase 4 subset accuracy comparison. A6 is the strongest thresholded detector among the attention-fusion variants.}
+\caption{Full Phase 4 accuracy comparison. A2 is the strongest thresholded detector among the A0-A9 attention-guided variants.}
 \label{fig:phase4-acc}
 \end{figure*}
 
-The best single attention head is L16-H05, with validation AUROC 0.6776. This head is weak compared with hidden-state probes, but selected heads become useful when fused with hidden states. This pattern supports a complementary-feature interpretation rather than an attention-only interpretation.
+The best single attention head is L15-H06, with validation AUROC 0.6527. Single-head features remain weaker than the complete debiased attention-score representation. The head-selection experiments are useful as diagnostics, while the full-data A0-A9 comparison selects A2 as the most stable attention-based detector.
 
 \subsection{Case-Level Correction}
 
-Aggregate accuracy can hide whether a fusion method actually corrects hidden-only mistakes. We therefore compare A6 against the hidden-only subset baseline sample by sample. Table~\ref{tab:a6-cases} shows the correction matrix on the 150-example test subset.
+Aggregate accuracy can hide whether a routing method actually corrects hidden-only mistakes. We therefore compare A9 gated fusion against the hidden-only baseline sample by sample. Table~\ref{tab:a9-cases} shows the correction matrix on the full 631-example test set.
 
 \begin{table}[t]
 \centering
 \small
 \begin{tabular}{lcc}
 \toprule
- & A6 correct & A6 wrong \\
+ & A9 correct & A9 wrong \\
 \midrule
-Hidden correct & 129 & 1 \\
-Hidden wrong & 4 & 16 \\
+Hidden correct & 509 & 1 \\
+Hidden wrong & 4 & 117 \\
 \bottomrule
 \end{tabular}
-\caption{A6 correction matrix against the hidden-only subset baseline. A6 corrects four hidden-only errors and introduces one regression, for a net correction of +3.}
-\label{tab:a6-cases}
+\caption{A9 correction matrix against the hidden-only full-data baseline. A9 corrects four hidden-only errors and introduces one regression, for a net correction of +3. The total A9 correct count is \(509 + 4 = 513\), matching the 81.30\% accuracy in Table~\ref{tab:phase4}.}
+\label{tab:a9-cases}
 \end{table}
 
-The corrected examples include simple factual statements such as ``The Earth has one moon.'' In this case, the hidden-only classifier predicts false with probability 0.386 for the true class, while A6 predicts true with probability 0.879. The attention visualization for the strongest head is shown in Appendix~\ref{app:cases}. This evidence should be interpreted cautiously: attention maps are diagnostic, not causal proof. Still, the case matrix confirms that the A6 gain is not only a threshold artifact; it changes several hidden-only mistakes into correct predictions.
+The A9 matrix shows that gated routing can change individual decisions and gives a small positive net correction (+3 samples), while its aggregate metrics remain below A2. The A6 aggregate result in Table~\ref{tab:phase4} shows that top-head fusion has a lower full-data accuracy than the hidden-only baseline. These case-level analyses are useful diagnostics for future routing design, while the main method conclusion follows the full A0-A9 ablation.
 
 \section{Discussion}
 
@@ -295,19 +297,19 @@ Hidden states summarize more than final token probabilities. They encode semanti
 \paragraph{Why middle-to-late layers are strongest.}
 The layer sweep suggests that factuality is not maximally available at the embedding-like bottom layer or necessarily at the final layer. Early layers mostly encode local lexical and syntactic information. Middle-to-late layers have integrated enough context to expose factuality signals. The final layer may be more specialized for immediate next-token prediction, which can make it less ideal as a general factuality representation.
 
-\paragraph{Why attention helps.}
-The attention features preserve structured alignment information between the final token and statement anchors. Hidden states compress the entire statement into a dense vector, whereas attention scores expose where the model routes information. After debiasing and validation-based head selection, these features become complementary to hidden states. However, attention-only features remain weaker than hidden-state probes, and the subset-only nature of the A6/A8 results limits the strength of the conclusion.
+\paragraph{Why debiased attention scores help.}
+The attention features preserve structured alignment information between the final token and statement anchors. Hidden states compress the entire statement into a dense vector, whereas attention scores expose where the model routes information. Length residualization reduces sentence-length and anchor-count confounds, and the resulting A2 features outperform the hidden-only baseline on the full test set. The broader A0-A9 sweep shows that stable attention-score readout is more reliable here than top-head fusion, attention-output fusion, or the current gated routing rule.
 
 \paragraph{Engineering lessons.}
 The Phase 4 rerun also shows that numerical stability is part of the method. On the tested RTX 3090 environment, eager attention with float16 produced NaNs, while eager attention with bfloat16 was stable for hidden states, attention scores, and attention outputs. Reproducible probing therefore requires documenting dtype and attention implementation, not only model and dataset.
 
 \section{Conclusion}
 
-This project shows that LLM internal states provide substantially stronger hallucination-detection signals than output perplexity alone. On the full test set, SAPLMA-style hidden-state probes outperform PPL by large margins in accuracy, macro-F1, and AUROC. Layer and token analyses show that the best readout is not a generic final-layer representation: factuality signals are strongest in middle-to-late layers, and last-token pooling is much more reliable than first-token or mean pooling. Attention-guided features add a further interpretable extension. On a controlled subset, top-head attention fusion improves the hidden-only baseline and corrects a small but concrete set of hidden-only errors. Future work should validate the attention-fusion result on the full dataset, test larger and different model families, and design more robust fusion or routing mechanisms.
+This project shows that LLM internal states provide substantially stronger hallucination-detection signals than output perplexity alone. On the full test set, SAPLMA-style hidden-state probes outperform PPL by large margins in accuracy, macro-F1, and AUROC. Layer and token analyses show that factuality signals are strongest in middle-to-late layers, and last-token pooling is much more reliable than first-token or mean pooling. Attention-guided features add a further interpretable extension: full Phase 4 ablation selects debiased attention-score-only features (A2) as the strongest attention-guided detector in the A0-A9 comparison, reaching 81.93\% accuracy, 81.93\% macro-F1, and 0.9010 AUROC. Future work should test this result on larger and different model families and design more robust calibration or routing mechanisms.
 
 \section*{Limitations}
 
-The experiments use a single base model, Qwen2-1.5B, and one processed True-False statement dataset. The task is binary and statement-level, so it is simpler than real user-facing hallucination detection in open-ended generation. Phase 4 attention-fusion results are based on a 600/150/150 subset, not the full dataset; they should be treated as promising evidence rather than a complete generalization result. The anchor extraction rules are simple and may be less reliable for complex syntax. Finally, attention visualizations are diagnostic evidence only. They help explain model behavior but do not establish causal mechanisms.
+The experiments use a single base model, Qwen2-1.5B, and one processed True-False statement dataset. The task is binary and statement-level, so it is simpler than real user-facing hallucination detection in open-ended generation. Phase 4 is evaluated on the full split, but the A2 attention-guided conclusion still needs cross-model, cross-dataset, and significance validation. The anchor extraction rules are simple and may be less reliable for complex syntax. Finally, attention visualizations are diagnostic evidence only. They help explain model behavior and do not establish causal mechanisms.
 
 \section*{Acknowledgments}
 
@@ -346,24 +348,24 @@ Inventions & 702 & 87 & 87 \\
 \begin{figure*}[p]
 \centering
 \includegraphics[width=0.86\textwidth]{figures/method_auroc_comparison.png}
-\caption{Phase 4 subset AUROC comparison. A8 reaches the highest AUROC among the tested fusion variants.}
+\caption{Full Phase 4 AUROC comparison. A2 reaches the highest AUROC among the A0-A9 attention-guided variants.}
 \label{fig:phase4-auroc}
 \end{figure*}
 
 \begin{figure*}[p]
 \centering
 \includegraphics[width=0.86\textwidth]{figures/layer_head_auroc_heatmap.png}
-\caption{Validation AUROC heatmap for attention-score heads. The best single head is L16-H05.}
+\caption{Validation AUROC heatmap for attention-score heads. The best single head is L15-H06.}
 \label{fig:head-heatmap}
 \end{figure*}
 
-\section{A6 Improvement Case}
+\section{Attention Case Visualization}
 \label{app:cases}
 
 \begin{figure*}[p]
 \centering
-\includegraphics[width=0.86\textwidth]{figures/improvement_case_l16_h5_1.png}
-\caption{Representative improvement case for A6. The statement is true, the hidden-only classifier predicts false, and A6 predicts true.}
+\includegraphics[width=0.86\textwidth]{figures/improvement_case_l15_h6_1.png}
+\caption{Representative attention case for the validation-selected L15-H06 head. The visualization is diagnostic evidence for how selected heads attend to statement anchors.}
 \label{fig:improvement-case}
 \end{figure*}
 

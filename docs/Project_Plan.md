@@ -43,11 +43,11 @@
 - **Phase 2 复现性修正已完成**：当前代码已显式固定随机种子与确定性运行选项，并支持在结果摘要中记录 seeds / runtime 等关键信息
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
-- **Phase 4 已完成核心实现与复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地，结果已同步写入 `experiments/results/phase4/`、`docs/Report.md` 与 `docs/Advanced_Optimization.md`
-- **Phase 5 报告资产已补齐**：已生成 PPL 分布图、Phase 4 方法对比图、layer-head AUROC heatmap、A6 逐样本修正矩阵与 attention case 可视化，资产清单见 `experiments/results/report_assets_manifest.md`
+- **Phase 4 已完成核心实现与全量复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地；全量结果显示 A2 debiased attention-score only 是当前 A0-A9 attention-guided 消融中的最优方法，同时也验证了 top-head 融合、attention output 与 gated routing 的收益边界
+- **Phase 5 报告资产已补齐**：已生成 PPL 分布图、Phase 4 方法对比图、layer-head AUROC heatmap、A6/A9 修正矩阵与 attention case 可视化，相关资产位于 `experiments/results/`
 - **数值稳定路径已切换**：Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；当前默认稳定路径为 `bfloat16 + eager attention`，并已在 `src/config.py` 中作为主配置同步
 - **CLI 与脚本结构已收敛**：`main.py` 已改为纯命令分发器；通用命令位于 `scripts/commands/`，阶段运行脚本位于 `scripts/run/`
-- **项目主体实验已基本完成**：当前剩余工作主要集中在 README / 计划文档等工程与文档收尾，而不是 Phase 2-4 主体实验逻辑补齐
+- **项目主体实验已基本完成**：当前剩余工作主要集中在 README / 计划文档等工程与文档收尾；Phase 2-4 主体实验逻辑已经落地
 - **里程碑文档已整合**：M1-M4 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
 
 ---
@@ -100,7 +100,6 @@
 LLMHallucinationProbing/
 ├── docs/
 │   ├── Project_Plan.md
-│   ├── Advanced_Optimization.md
 │   ├── Proposal.md
 │   ├── Report.md
 │   ├── 利用大语言模型内部状态进行幻觉检测.md
@@ -727,7 +726,9 @@ LLMHallucinationProbing/
 
 ### Phase 4：进阶方法探索（5-6 天）| 5.29 – 6.4 ｜**当前状态：已完成核心实验与实现**
 
-本轮实际采用的是 **基于注意力的进阶路线**，而不是并行推进 FFN / MoE / DLLM 多条支线。Phase 4 以 Phase 3 已确认的 `layer 17 + last token + logistic` hidden baseline 为起点，围绕陈述句内部的实体-关系结构构建 attention score / output 特征，并完成系统消融与错误分析。
+本轮实际采用 **基于注意力的进阶路线**。Phase 4 以 Phase 3 已确认的 `layer 17 + last token + logistic` hidden baseline 为起点，围绕陈述句内部的实体-关系结构构建 attention score / output 特征，并完成系统消融与错误分析。
+
+该阶段的目标是系统回答“注意力模块的哪些内部信号真正可用于真假判别”。因此实验覆盖了 raw attention score、debiased attention score、validation-based top-head selection、attention output activation、hidden-attention 拼接、top-head/output 三路融合、gated fusion、A9 逐样本修正矩阵、A9 error analysis 与 case visualization。最终 A2 在 A0-A9 attention-guided 消融中最优，A6/A8/A9 未形成全局优势，这些负向结果共同构成进阶探索的边界结论。
 
 | 编号 | 任务 | 输出物 | 当前状态 |
 | ---- | ---- | ------ | -------- |
@@ -737,20 +738,20 @@ LLMHallucinationProbing/
 | P4.4 | 基于验证集执行 layer / head selection | `attention_head_selection.json` | 已完成 |
 | P4.5 | 提取 attention output activation 统计特征 | `src/features/attention_outputs.py` | 已完成 |
 | P4.6 | 训练融合分类器并完成 A0-A9 消融实验 | `phase4_ablation_results.json`、`phase4_main_results.csv` | 已完成 |
-| P4.7 | 生成图表、错误分析并同步文档结果 | `phase4_error_analysis.csv`、`figures/`、`docs/Report.md`、`docs/Advanced_Optimization.md` | 已完成 |
+| P4.7 | 生成图表、错误分析并同步文档结果 | `phase4_error_analysis.csv`、`figures/`、`docs/Report.md` | 已完成 |
 
 **核心技术细节**：
 
 #### P4.1 Hidden baseline 与稳定运行路径
 
-- Phase 4 不再重新选择 hidden 读出方式，而是直接固定 Phase 3 已验证的最佳配置：`layer 17 + last token + logistic regression`
+- Phase 4 固定 Phase 3 已验证的最佳 hidden 读出配置：`layer 17 + last token + logistic regression`
 - 全量数据集 baseline 继续使用固定划分 `5047 / 631 / 631`，并保留 3 个 seeds：`42 / 123 / 2024`
-- 注意力实验支路为了控制计算成本，实际采用 `600 / 150 / 150` 子集进行 score / output 特征提取和融合消融；全量 hidden baseline 作为主参考对照保留
+- 注意力实验支路已经完成全量 score / output 特征提取和 A0-A9 消融；全量 hidden baseline 与 attention variants 使用同一测试集口径比较
 - 当前 Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；因此 Phase 4 默认稳定路径已切换为 `bfloat16 + eager attention`
 
 #### P4.2 陈述句 anchor 与 attention score 特征
 
-- True-False Dataset 的输入是陈述句而非问答对，因此实际实现采用 `subject / relation / tail / last token` 四类 anchor，而不是 query-answer attention 方案
+- True-False Dataset 的输入是陈述句，实际实现采用 `subject / relation / tail / last token` 四类 anchor，作为 statement-level attention 方案
 - `src/features/anchor_extraction.py` 使用规则抽取与 tokenizer offset 对齐，统一输出 token-level anchors，并记录 fallback 情况
 - `src/features/attention_scores.py` 在候选层 `13-20` 上提取 layer / head 级 attention score 特征，核心统计包括：
     - `last_to_subject / relation / tail / anchor mass`
@@ -763,14 +764,15 @@ LLMHallucinationProbing/
 
 - attention 特征默认不直接拼接句长与 anchor 数量元信息，而是通过 `residualize_by_length` 在 train set 上拟合长度残差化，再将变换应用到 val / test，避免数据泄漏
 - head selection 按 head 分组在验证集上以 AUROC 排序，当前主实验固定选择 top-16 heads，再将选中 head 的 attention score 子特征用于融合
-- 当前复跑中，最强单 head 来自 `L16-H05`，验证集 AUROC 为 `0.6776`；说明 head selection 已从旧的噪声状态转为可解释的弱监督筛选信号
+- 当前复跑中，最强单 head 来自 `L15-H06`，验证集 AUROC 为 `0.6527`；head selection 可作为诊断信号，全量 A0-A9 attention-guided 消融中的最优判别路径仍是 A2 debiased attention-score only
 
 #### P4.4 Attention output、融合策略与可视化
 
 - 除 attention score 外，Phase 4 还提取 attention module output activation 的统计特征，作为对 hidden baseline 的补充内部信号
 - 最终统一比较 A0-A9 十组实验：hidden-only、score-only、output-only、hidden+score、hidden+top-head、hidden+output、三路融合与 gated fusion
-- `src/analysis/phase4_analysis.py` 负责生成方法对比图、layer-head heatmap 与 correction matrix；错误分析结果写入 `phase4_error_analysis.csv`，A6 逐样本分析写入 `a6_case_analysis.csv`
-- 当前主结论是：`hidden + top-16 head attention score` 获得最佳 Accuracy / Macro-F1，而 `hidden + top-head + output` 获得最佳 AUROC；gated fusion 在本轮复跑中没有带来净纠错
+- `src/analysis/phase4_analysis.py` 负责生成方法对比图、layer-head heatmap 与 correction matrix；错误分析结果写入 `phase4_error_analysis.csv`，A9 correction matrix 同步保存在 `phase4_ablation_results.json` 与 `a9_correction_matrix.json`
+- 当前主结论是：`Debiased attn-score only`（A2）在 A0-A9 attention-guided 消融中获得最佳 Accuracy / Macro-F1 / AUROC；gated fusion（A9）只有轻微净纠错，top-head 融合（A6/A8）没有稳定超过 A2
+- 因此，Phase 4 的贡献应表述为“系统评估注意力内部信号的可用性并选出最稳健方案”
 
 **里程碑 M4**: 已完成基于注意力分数与 attention output activation 的进阶特征实现、对比实验、错误分析与图表生成，并确认 `bfloat16 + eager attention` 为当前环境下的稳定运行路径。
 
@@ -779,12 +781,13 @@ LLMHallucinationProbing/
 - `src/features/anchor_extraction.py`、`attention_scores.py`、`attention_outputs.py`、`src/methods/phase4_attention.py`、`src/analysis/phase4_analysis.py` 与 `src/utils/feature_cache.py` 已全部落地
 - `scripts/run/phase4.py` 已作为 Phase 4 主脚本落地，`main.py` 通过分发器提供 `phase4`、`phase4-cache-hidden`、`phase4-hidden-baseline`、`phase4-extract-attention-scores`、`phase4-extract-attention-outputs`、`phase4-select-heads`、`phase4-ablation` 与 `phase4-visualize` 入口
 - `tests/phase4/` 已建立并通过，覆盖 anchor 抽取、attention score / output 特征、去偏、head selection 与整条 pipeline
-- `experiments/results/phase4/` 已生成 hidden baseline、head selection、feature summary、ablation results、error analysis、A6 correction matrix、case visualization 与 figures 等 Phase 4 产物
+- `experiments/results/phase4/` 已生成 hidden baseline、head selection、feature summary、ablation results、error analysis、A9 correction matrix、case visualization 与 figures 等 Phase 4 产物
 - 全量 hidden baseline（A0）在当前 Linux + bfloat16 路径下达到：Test Accuracy = `0.8082`、Macro-F1 = `0.8081`、AUROC = `0.8897`
-- 子集消融中，A6 `Hidden + top-16 head attention` 取得当前最佳 Accuracy / Macro-F1：`0.8867 / 0.8865`；A8 `Hidden + top-head + output` 取得最佳 AUROC：`0.9403`
+- 全量消融中，A2 `Debiased attn-score only` 在 A0-A9 attention-guided variants 中取得当前最佳 Accuracy / Macro-F1 / AUROC：`0.8193 / 0.8193 / 0.9010`
+- A9 gated fusion 的全量修正矩阵为 509/1/4/117，净修正 `+3`，正确数 `513/631` 与 `0.8130` Accuracy 一致；A6 的聚合指标以 A0-A9 消融表为准，其 Accuracy 为 `0.8003`
 - NaN 问题已通过切换到 `bfloat16 + eager` 实际解决；attention score / output 新缓存中的 NaN 计数为 0
 
-**结论**：Phase 4 已完成计划中的进阶方法主线探索，并形成了可复现的 attention-based 结果闭环。当前未采用的 FFN / MoE / DLLM 方向可视为后续扩展题，而不再是本项目主体实验的阻塞项。
+**结论**：Phase 4 已完成计划中的进阶方法主线探索，并形成了可复现的 attention-based 结果闭环。A2 的 A0-A9 attention-guided 最优结果提供正向方法结论，A6/A8/A9 的边界结果则说明 head selection、attention output 与 gated routing 仍需更稳健设计。当前未采用的 FFN / MoE / DLLM 方向可视为后续扩展题，而不再是本项目主体实验的阻塞项。
 
 ---
 
@@ -806,9 +809,9 @@ LLMHallucinationProbing/
 - `experiments/results/baseline/ppl_score_distribution.png`：PPL 真/假分布图
 - `experiments/results/phase4/figures/layer_head_auroc_heatmap.png`：layer-head AUROC heatmap
 - `experiments/results/phase4/figures/method_accuracy_comparison.png` 与 `method_auroc_comparison.png`：Phase 4 方法对比图
-- `experiments/results/phase4/a6_case_analysis.csv` 与 `a6_correction_matrix.json`：A6 vs hidden-only 逐样本修正分析
-- `experiments/results/phase4/case_viz/`：基于 `L16-H05` 的 attention case 可视化
-- `experiments/results/report_assets_manifest.md`：报告/PPT 资产清单与使用说明
+- `experiments/results/phase4/phase4_ablation_results.json`：A0-A9 消融主结果，并包含 A9 vs hidden-only correction matrix
+- `experiments/results/phase4/phase4_error_analysis.csv`：A9 gated fusion 的逐样本错误修正分析
+- `experiments/results/phase4/case_viz/`：基于验证集代表性 head 的 attention case 可视化
 
 **报告结构建议**：
 
@@ -834,7 +837,7 @@ LLMHallucinationProbing/
 为确保课程要求在任何环境风险下都能完成，定义以下保底交付内容：
 
 - 使用 **Qwen2-1.5B** 完成 PPL、SAPLMA、层分析、token 位置分析的全部实验
-- 至少完成一个进阶方向（注意力或 FFN）的小规模实验与对比
+- 至少完成一个进阶方向（注意力或 FFN）的系统实验与对比
 - 输出完整的代码、图表、实验记录和报告初稿
 
 ### 报告图表清单
@@ -848,8 +851,8 @@ LLMHallucinationProbing/
 | F3   | 不同 token 表示方式的柱状对比图 | 3.2 / 5.2 | First / Last / Mean pooling 效果对比 |
 | F4   | PPL 分数分布直方图（真/假分别） | 3.1 / 5.1 | 已生成，展示两类陈述的 PPL 分布重叠程度 |
 | F5   | 进阶方法 vs 基线对比表          | 3.3 / 5.3 | 多特征组合的消融实验结果             |
-| F6   | 注意力热力图（真/假陈述对比）   | 3.3 / 5.3 | 已生成，基于 `L16-H05` 展示典型案例 |
-| F7   | 错误分析示例表                  | 5.1-5.3   | 已生成 A6 case analysis 与 correction matrix |
+| F6   | 注意力热力图（真/假陈述对比）   | 3.3 / 5.3 | 已生成，基于验证集代表性 head 展示典型案例 |
+| F7   | 错误分析示例表                  | 5.1-5.3   | 已生成 A9 correction matrix 与 A9 error analysis |
 
 ---
 

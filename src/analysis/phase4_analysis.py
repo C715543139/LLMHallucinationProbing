@@ -91,6 +91,31 @@ def plot_layer_head_auroc_heatmap(
     ax.set_yticklabels(layer_labels)
     ax.set_title(title or f"Layer × Head {metric.upper()} Heatmap")
     plt.colorbar(im, ax=ax, label=metric.upper())
+
+    best = max(head_scores, key=lambda item: item.get(metric, float("-inf")))
+    best_row = best["layer"] - min_layer
+    best_col = best["head"]
+    if 0 <= best_row < num_layers and 0 <= best_col < num_heads:
+        ax.scatter(
+            [best_col],
+            [best_row],
+            marker="*",
+            s=260,
+            c="white",
+            edgecolors="black",
+            linewidths=1.2,
+            zorder=3,
+        )
+        ax.text(
+            best_col + 0.25,
+            best_row - 0.25,
+            f"L{best['layer']}-H{best['head']:02d}",
+            color="black",
+            fontsize=11,
+            fontweight="bold",
+            bbox={"facecolor": "white", "alpha": 0.75, "edgecolor": "none", "pad": 1.5},
+            zorder=4,
+        )
     return _finalize_figure(fig, save_path), ax
 
 

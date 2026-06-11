@@ -1,0 +1,14 @@
+{
+  "hidden_correct_a9_correct": 509,
+  "hidden_correct_a9_wrong": 1,
+  "hidden_wrong_a9_correct": 4,
+  "hidden_wrong_a9_wrong": 117,
+  "net_correction": 3,
+  "analysis_sizes": {
+    "train": 5047,
+    "val": 631,
+    "test": 631
+  },
+  "is_full_test_analysis": true,
+  "source": "phase4_ablation_results.json"
+}

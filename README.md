@@ -2,7 +2,7 @@
 
 利用大语言模型内部状态进行幻觉检测的实验项目。项目以 Qwen2-1.5B 和 True-False Dataset 为基础，比较序列概率、隐藏状态探测和注意力特征融合等方法，验证模型内部表征中是否存在可被读取的真假判别信号。
 
-当前代码已完成 Phase 1 至 Phase 4 的主体实现、自动化测试与结果归档，后续工作主要集中在正式报告、图表整理、全量融合实验验证和跨模型扩展。
+当前代码已完成 Phase 1 至 Phase 4 的主体实现、自动化测试与结果归档，后续工作主要集中在正式报告、图表整理、跨模型扩展和显著性分析。
 
 ## 项目概览
 
@@ -12,6 +12,8 @@
 - **SAPLMA 基线**：提取模型隐藏状态，用 Logistic Regression 或 MLP 分类器判断真假。
 - **层与 token 分析**：逐层比较隐藏状态可分性，并比较 `first` / `last` / `mean` pooling。
 - **Phase 4 进阶方法**：基于陈述句 anchor 提取 attention score / attention output 特征，进行长度去偏、head selection 和多种融合消融。
+
+Phase 4 围绕注意力信号做了系统探索：从 raw / debiased attention score、top-head selection、attention output activation，到 hidden 拼接、三路融合和 gated fusion 均纳入 A0-A9 消融。最终 A2 成为 A0-A9 attention-guided 消融中的最优方法，同时 A6/A8/A9 等复杂方案的收益边界也被实验证明，这部分负向结果是进阶探索的重要组成部分。
 
 当前默认实验设置：
 
@@ -31,11 +33,11 @@
 | Phase 2 | PPL                           |   0.5293 |        0.4180 |     0.6784 | 序列概率阈值基线                   |
 | Phase 2 | SAPLMA LR                     |   0.7496 |        0.7496 |     0.8265 | 最后一层 `last` token hidden state |
 | Phase 2 | SAPLMA MLP                    |   0.7771 |        0.7769 |     0.8770 | 非线性分类器基线                   |
-| Phase 3 | Best layer L17                |   0.8003 |        0.8001 |     0.8876 | 中后层 hidden state 最优           |
+| Phase 3 | Validation-selected L17       |   0.8003 |        0.8001 |     0.8876 | 中后层 hidden state 信号更强       |
 | Phase 3 | Best pooling `last`           |   0.7496 |        0.7496 |     0.8265 | `last > mean >> first`             |
 | Phase 4 | Hidden-only A0                |   0.8082 |        0.8081 |     0.8897 | 全量 hidden baseline               |
-| Phase 4 | Hidden + top-16 head A6       |   0.8867 |        0.8865 |     0.9330 | 子集消融，最佳 Accuracy/F1         |
-| Phase 4 | Hidden + top-head + output A8 |   0.8800 |        0.8798 |     0.9403 | 子集消融，最佳 AUROC               |
+| Phase 4 | Debiased attn-score only A2   |   0.8193 |        0.8193 |     0.9010 | 全量 A0-A9 attention-guided 最优   |
+| Phase 4 | Gated fusion A9               |   0.8130 |        0.8129 |     0.8903 | 全量轻微净修正，但非最优           |
 
 主要结论：
 
@@ -43,7 +45,8 @@
 - 隐藏状态中的真实性信号可被轻量分类器读取，SAPLMA 明显优于 PPL。
 - 真实性信号在中后层更强，最后层不一定是最佳读出层。
 - 对因果语言模型而言，最后一个有效 token 是更可靠的整句表示位置。
-- Attention score 在数值稳定后可提供互补信号；先筛选 top heads 再与 hidden state 融合，是当前 Phase 4 中最有效的增强方式。
+- Attention score 在数值稳定后可提供强判别信号；去长度偏置后的 attention-score only（A2）是当前 A0-A9 attention-guided 消融中的全量最优方法，复杂融合和 top-head 拼接未稳定超过该方法。
+- 进阶探索覆盖了 score、output、head selection、feature fusion、gated routing、错误修正矩阵和 attention case 可视化；结论既包括 A2 的正向提升，也包括复杂融合策略的边界。
 
 ## 项目结构
 
@@ -66,7 +69,7 @@
 ├── tests/                          # Phase 1-4 自动化测试
 ├── experiments/results/            # 已归档实验结果
 ├── docs/                           # 项目计划、阶段报告与进阶方案说明
-├── data/                           # 本地数据目录，未纳入 Git
+├── data/                           # 已跟踪的原始数据与预处理划分
 └── models_cache/                   # 本地模型缓存，未纳入 Git
 ```
 
@@ -80,7 +83,7 @@
 - `uv` 用于安装 `pyproject.toml` 中锁定的依赖
 - HuggingFace 模型下载能力，必要时使用 `HF_ENDPOINT=https://hf-mirror.com`
 
-`data/` 和 `models_cache/` 被 `.gitignore` 排除。克隆仓库后，如需完整复现实验，需要自行准备原始数据、预处理缓存和 Qwen2-1.5B 模型文件。
+`models_cache/` 被 `.gitignore` 排除。克隆仓库后，如需完整复现实验，需要自行准备或下载 Qwen2-1.5B 模型文件；数据文件已随仓库跟踪。
 
 ## 配置引导
 
@@ -176,9 +179,9 @@ pytest tests/phase4
 目前只保留最常用的文档入口，暂不对 `docs/` 下全部文件做结构化索引：
 
 - [docs/Project_Plan.md](docs/Project_Plan.md)：项目计划、环境搭建、阶段任务与运行说明。
-- [docs/Milestone.md](docs/Milestone.md)：Phase 1-4 进展、交付物和关键指标纵览。
 - [docs/Report.md](docs/Report.md)：阶段性实验报告、方法解释、结果讨论与局限性。
-- [docs/Advanced_Optimization.md](docs/Advanced_Optimization.md)：Phase 4 attention 特征、稳定性诊断、消融结果与后续优化方向。
+- [docs/Report_ACL_zh.md](docs/Report_ACL_zh.md)：论文式中文对照稿，覆盖 Phase 4 全量消融与最终口径。
+- [docs/outdated/Milestone.md](docs/outdated/Milestone.md)：历史中期里程碑归档，仅作提交记录参考。
 
 ## License
 
