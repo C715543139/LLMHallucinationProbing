@@ -19,8 +19,8 @@ Phase 4 围绕注意力信号做了系统探索：从 raw / debiased attention s
 
 - 模型：`Qwen/Qwen2-1.5B`
 - 本地模型路径：`models_cache/Qwen2-1.5B/`
-- 数据：True-False Dataset 的 CSV 版本，位于 `data/raw/`
-- 数据划分：按领域与标签分层的 `train/val/test = 8/1/1`
+- 数据：True-False Dataset 的 CSV 版本，位于 `data/raw/`；当前配置包含课程六领域和 generated subset，共 6,309 条有效样本
+- 数据划分：按领域与标签分层的 `train/val/test = 5,047/631/631`
 - 主要指标：Accuracy、Macro-F1、AUROC
 - Phase 4 稳定路径：`eager attention + bfloat16`
 

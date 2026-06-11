@@ -83,9 +83,9 @@
 
 - Mean PPL (True): 77.23
 - Mean PPL (False): 225.72
-- AUROC: 0.6690
-- Accuracy (threshold=232.43): 0.5261
-- Macro-F1: 0.4160
+- AUROC: 0.6784
+- Accuracy (threshold=232.43): 0.5293
+- Macro-F1: 0.4180
 
 ### 最强 Attention Head
 

@@ -17,7 +17,7 @@
 | 项       | 选择                                     | 说明                                                                                                                           |
 | -------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | 实验模型 | Qwen2-1.5B（当前稳定路径：bfloat16 + eager） | 当前主实验环境为 Linux + RTX 3090；Phase 2 / 3 历史结果包含 float16 路径，Phase 4 复跑与默认配置已切换为 bfloat16 以避免 eager attention NaN |
-| 数据集   | True-False Dataset                       | 当前有效样本数为 6309，固定划分为 train=5047、val=631、test=631；主要覆盖 Cities、Inventions、Chemical Elements、Animals、Companies、Scientific Facts |
+| 数据集   | True-False Dataset                       | 当前有效样本数为 6309，固定划分为 train=5047、val=631、test=631；主要覆盖 Cities、Inventions、Chemical Elements、Animals、Companies、Scientific Facts，并包含当前工程配置中的 generated subset |
 
 ### 1.3 实验协议
 
@@ -44,7 +44,7 @@
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
 - **Phase 4 已完成核心实现与全量复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地；全量结果显示 A2 debiased attention-score only 是当前 A0-A9 attention-guided 消融中的最优方法，同时也验证了 top-head 融合、attention output 与 gated routing 的收益边界
-- **Phase 5 报告资产已补齐**：已生成 PPL 分布图、Phase 4 方法对比图、layer-head AUROC heatmap、A6/A9 修正矩阵与 attention case 可视化，相关资产位于 `experiments/results/`
+- **Phase 5 报告资产已补齐**：已生成 PPL 分布图、Phase 4 方法对比图、layer-head AUROC heatmap、A9 修正矩阵与 attention case 可视化，相关资产位于 `experiments/results/`
 - **数值稳定路径已切换**：Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；当前默认稳定路径为 `bfloat16 + eager attention`，并已在 `src/config.py` 中作为主配置同步
 - **CLI 与脚本结构已收敛**：`main.py` 已改为纯命令分发器；通用命令位于 `scripts/commands/`，阶段运行脚本位于 `scripts/run/`
 - **项目主体实验已基本完成**：当前剩余工作主要集中在 README / 计划文档等工程与文档收尾；Phase 2-4 主体实验逻辑已经落地

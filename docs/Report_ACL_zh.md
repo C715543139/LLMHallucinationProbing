@@ -164,7 +164,7 @@ Phase 4 在全量 5,047/631/631 train/validation/test 划分上评估 attention 
 | A8 | Hidden + top-head + output | 1832 | 79.71 | 79.71 | 88.43 |
 | A9 | Gated fusion, tau=0.15 | - | 81.30 | 81.29 | 89.03 |
 
-Attention score alone 已经高于 hidden-only baseline，并且去长度偏置后的 A2 达到最高 accuracy、macro-F1 和 AUROC。A5/A6/A8 等融合方法没有超过 A2，说明 debiased attention score 本身就是当前最稳健的强判别信号。
+Attention score alone 已经高于 hidden-only baseline，并且去长度偏置后的 A2 在 A0-A9 attention-guided 消融中达到最高 accuracy、macro-F1 和 AUROC。A5/A6/A8 等融合方法没有超过 A2，说明 debiased attention score 本身就是当前最稳健的强判别信号。
 
 A0s 作为 attention-aligned hidden baseline 保留在表中；当前全量 attention extraction 覆盖完整 5,047/631/631 划分，因此 A0s 与 A0 数值相同。
 
