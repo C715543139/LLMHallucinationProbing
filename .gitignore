@@ -2,7 +2,6 @@
 .idea
 *.log
 
-/data
 /models_cache
 __pycache__
 cache
