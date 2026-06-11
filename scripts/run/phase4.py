@@ -68,7 +68,7 @@ SEEDS = (42, 123, 2024)
 CANDIDATE_LAYERS = [13, 14, 15, 16, 17, 18, 19, 20]
 METHOD_LABELS = {
     "A0": "Hidden-only (L17 last, LR)",
-    "A0s": "Hidden-only (subset, LR)",
+    "A0s": "Hidden-only (attention-aligned, LR)",
     "A1": "Attn-score only (raw)",
     "A2": "Attn-score only (debiased)",
     "A3": "Attn-score (top heads)",
@@ -119,9 +119,9 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="特征缓存目录，默认使用 output-dir/cache",
     )
-    parser.add_argument("--subset-train", type=int, default=600, help="full 模式下 train 子集大小")
-    parser.add_argument("--subset-val", type=int, default=150, help="full 模式下 val 子集大小")
-    parser.add_argument("--subset-test", type=int, default=150, help="full 模式下 test 子集大小")
+    parser.add_argument("--subset-train", type=int, default=None, help="可选：仅截取 train 前 N 条；默认使用全量")
+    parser.add_argument("--subset-val", type=int, default=None, help="可选：仅截取 val 前 N 条；默认使用全量")
+    parser.add_argument("--subset-test", type=int, default=None, help="可选：仅截取 test 前 N 条；默认使用全量")
     parser.add_argument("--top-k-heads", type=int, default=16, help="head selection 使用的 top-k")
     parser.add_argument("--use-cache", action="store_true", help="full 模式下使用已有缓存重跑 A0-A9")
     parser.add_argument("--summary-only", action="store_true", help="full 模式下只打印现有结果")
@@ -153,11 +153,44 @@ def save_json(path: Path, payload: dict) -> None:
         json.dump(payload, handle, indent=2, ensure_ascii=False, default=str)
 
 
-def subset_dataset(dataset, size: int) -> TrueFalseDataset:
-    """按顺序截取数据子集。"""
-    size = min(size, len(dataset))
+def subset_dataset(dataset, size: int | None) -> TrueFalseDataset:
+    """按顺序截取数据；size 为 None 时使用全量。"""
+    size = len(dataset) if size is None else min(size, len(dataset))
     domains = dataset.domains[:size] if dataset.domains else None
     return TrueFalseDataset(dataset.statements[:size], dataset.labels[:size], domains)
+
+
+def resolve_attention_sizes(args: argparse.Namespace, train_ds, val_ds, test_ds) -> dict[str, int]:
+    """解析 attention 分支实际使用的样本数；默认全量。"""
+    requested = {
+        "train": args.subset_train,
+        "val": args.subset_val,
+        "test": args.subset_test,
+    }
+    datasets = {"train": train_ds, "val": val_ds, "test": test_ds}
+    sizes: dict[str, int] = {}
+    for split_name, size in requested.items():
+        if size is not None and size <= 0:
+            raise ValueError(f"--subset-{split_name} 必须为正整数，或省略以使用全量")
+        sizes[split_name] = len(datasets[split_name]) if size is None else min(size, len(datasets[split_name]))
+    return sizes
+
+
+def build_evaluation_scope(attention_sizes: dict[str, int], train_ds, val_ds, test_ds) -> dict:
+    """记录当前 attention/fusion 分支是全量还是子集。"""
+    full_sizes = {"train": len(train_ds), "val": len(val_ds), "test": len(test_ds)}
+    return {
+        "full_sizes": full_sizes,
+        "attention_sizes": attention_sizes,
+        "is_full_attention_evaluation": attention_sizes == full_sizes,
+    }
+
+
+def scope_note(scope: dict) -> str:
+    """生成结果表中的样本范围说明。"""
+    sizes = scope.get("attention_sizes", {})
+    prefix = "Full attention evaluation" if scope.get("is_full_attention_evaluation") else "Subset attention evaluation"
+    return f"{prefix}: train={sizes.get('train')}, val={sizes.get('val')}, test={sizes.get('test')}"
 
 
 def sanitize_features(name: str, features: np.ndarray) -> np.ndarray:
@@ -249,7 +282,7 @@ def ensure_hidden_cache(cache_dir: Path, dtype_name: str):
     save_hidden_cache(cache_dir, *hidden_data)
 
 
-def load_cached_bundle(cache_dir: Path, train_ds, val_ds, test_ds) -> dict:
+def load_cached_bundle(cache_dir: Path, train_ds, val_ds, test_ds, expected_attention_sizes: dict[str, int]) -> dict:
     """从缓存重建完整 Phase 4 特征包。"""
     required_paths = [
         cache_dir / "hidden_layer17_last_train.npz",
@@ -276,9 +309,23 @@ def load_cached_bundle(cache_dir: Path, train_ds, val_ds, test_ds) -> dict:
     output_val = load_npz_cache(cache_dir / "attention_outputs_val.npz")
     output_test = load_npz_cache(cache_dir / "attention_outputs_test.npz")
 
+    actual_attention_sizes = {
+        "train": len(score_train["labels"]),
+        "val": len(score_val["labels"]),
+        "test": len(score_test["labels"]),
+    }
+    if actual_attention_sizes != expected_attention_sizes:
+        raise ValueError(
+            "缓存样本数与当前请求不一致，拒绝继续以避免把旧子集缓存当作全量结果。\n"
+            f"  缓存 attention sizes: {actual_attention_sizes}\n"
+            f"  当前请求 attention sizes: {expected_attention_sizes}\n"
+            "请删除/更换 cache-dir 后重跑，或显式传入匹配的 --subset-train/--subset-val/--subset-test。"
+        )
+
     train_sub = subset_dataset(train_ds, len(score_train["labels"]))
     val_sub = subset_dataset(val_ds, len(score_val["labels"]))
     test_sub = subset_dataset(test_ds, len(score_test["labels"]))
+    evaluation_scope = build_evaluation_scope(actual_attention_sizes, train_ds, val_ds, test_ds)
 
     X_h_train = sanitize_features("hidden_train", hidden_train["features"])
     X_h_val = sanitize_features("hidden_val", hidden_val["features"])
@@ -314,19 +361,22 @@ def load_cached_bundle(cache_dir: Path, train_ds, val_ds, test_ds) -> dict:
         "y_sub_train": score_train["labels"],
         "y_sub_val": score_val["labels"],
         "y_sub_test": score_test["labels"],
+        "evaluation_scope": evaluation_scope,
     }
 
 
-def extract_feature_bundle(model, tokenizer, train_ds, val_ds, test_ds, cache_dir: Path, subset_sizes: dict[str, int]) -> dict:
+def extract_feature_bundle(model, tokenizer, train_ds, val_ds, test_ds, cache_dir: Path, attention_sizes: dict[str, int]) -> dict:
     """完整提取 full 模式需要的 hidden 与 attention 特征。"""
     X_h_train, X_h_val, X_h_test, y_train_full, y_val_full, y_test_full = extract_hidden_triplet(
         model, tokenizer, train_ds, val_ds, test_ds,
     )
     save_hidden_cache(cache_dir, X_h_train, X_h_val, X_h_test, y_train_full, y_val_full, y_test_full)
 
-    train_sub = subset_dataset(train_ds, subset_sizes["train"])
-    val_sub = subset_dataset(val_ds, subset_sizes["val"])
-    test_sub = subset_dataset(test_ds, subset_sizes["test"])
+    train_sub = subset_dataset(train_ds, attention_sizes["train"])
+    val_sub = subset_dataset(val_ds, attention_sizes["val"])
+    test_sub = subset_dataset(test_ds, attention_sizes["test"])
+    evaluation_scope = build_evaluation_scope(attention_sizes, train_ds, val_ds, test_ds)
+    print(f"Attention/fusion evaluation scope: {scope_note(evaluation_scope)}")
 
     score_train = extract_attention_score_features_dataset(
         model, tokenizer, train_sub, layers=CANDIDATE_LAYERS, batch_size=1,
@@ -378,6 +428,7 @@ def extract_feature_bundle(model, tokenizer, train_ds, val_ds, test_ds, cache_di
         "y_sub_train": score_train["labels"],
         "y_sub_val": score_val["labels"],
         "y_sub_test": score_test["labels"],
+        "evaluation_scope": evaluation_scope,
     }
 
 
@@ -387,6 +438,8 @@ def save_head_selection(path: Path, result: dict) -> None:
         "selection_metric": result["selection_metric"],
         "top_k_heads": result["top_k_heads"],
         "selected_heads": result["selected_heads"],
+        "selected_feature_indices": result["selected_feature_indices"],
+        "selected_feature_names": result["selected_feature_names"],
         "all_head_scores": [
             {key: value for key, value in row.items() if key != "feature_indices"}
             for row in result["all_head_scores"]
@@ -520,6 +573,7 @@ def run_phase4_pipeline(bundle: dict, output_dir: Path, runtime_info: dict, top_
     as_names = bundle["as_names"]
     ao_names = bundle["ao_names"]
     test_sub = bundle["test_sub"]
+    evaluation_scope = bundle.get("evaluation_scope", {})
 
     hidden_baseline = run_hidden_baseline(
         X_h_train, X_h_val, X_h_test,
@@ -569,7 +623,7 @@ def run_phase4_pipeline(bundle: dict, output_dir: Path, runtime_info: dict, top_
         y_sub_train,
         y_sub_val,
         y_sub_test,
-        f"Subset sizes: train={len(bundle['train_sub'])}, val={len(bundle['val_sub'])}, test={len(bundle['test_sub'])}",
+        scope_note(evaluation_scope),
     )
     run_and_record(results, "A1", METHOD_LABELS["A1"], X_as_train, X_as_val, X_as_test, y_sub_train, y_sub_val, y_sub_test)
     run_and_record(results, "A2", METHOD_LABELS["A2"], X_as_train_r, X_as_val_r, X_as_test_r, y_sub_train, y_sub_val, y_sub_test, "Length-residualized")
@@ -708,6 +762,7 @@ def run_phase4_pipeline(bundle: dict, output_dir: Path, runtime_info: dict, top_
             "head_selection": load_json(output_dir / "attention_head_selection.json"),
             "ablation": results,
             "correction_matrix": correction_matrix,
+            "evaluation_scope": evaluation_scope,
             "runtime": runtime_info,
         },
     )
@@ -842,7 +897,8 @@ def command_ablation(args: argparse.Namespace) -> None:
     """基于已有缓存重跑 head selection 与 A0-A9。"""
     train_ds, val_ds, test_ds = load_processed_splits()
     ensure_hidden_cache(args.cache_dir, args.dtype)
-    bundle = load_cached_bundle(args.cache_dir, train_ds, val_ds, test_ds)
+    attention_sizes = resolve_attention_sizes(args, train_ds, val_ds, test_ds)
+    bundle = load_cached_bundle(args.cache_dir, train_ds, val_ds, test_ds, attention_sizes)
     runtime_info = load_existing_runtime(args.output_dir, args.cache_dir)
     run_phase4_pipeline(bundle, args.output_dir, runtime_info, args.top_k_heads)
 
@@ -896,8 +952,9 @@ def main() -> None:
             return
 
         train_ds, val_ds, test_ds = load_processed_splits()
+        attention_sizes = resolve_attention_sizes(args, train_ds, val_ds, test_ds)
         if args.use_cache:
-            bundle = load_cached_bundle(args.cache_dir, train_ds, val_ds, test_ds)
+            bundle = load_cached_bundle(args.cache_dir, train_ds, val_ds, test_ds, attention_sizes)
             runtime_info = load_existing_runtime(args.output_dir, args.cache_dir)
         else:
             print("=" * 60)
@@ -912,7 +969,7 @@ def main() -> None:
                 val_ds,
                 test_ds,
                 args.cache_dir,
-                {"train": args.subset_train, "val": args.subset_val, "test": args.subset_test},
+                attention_sizes,
             )
         run_phase4_pipeline(bundle, args.output_dir, runtime_info, args.top_k_heads)
         return

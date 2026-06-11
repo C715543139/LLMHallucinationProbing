@@ -1,7 +1,7 @@
 """
 Phase 5 报告资产: 生成 A6 (Hidden + top-16 head attn) 逐样本分析。
 
-对比 hidden-only (A0s) 与 A6 在测试子集上的逐样本预测，
+对比 hidden-only (A0s) 与 A6 在 attention cache 覆盖范围内的逐样本预测，
 生成 a6_case_analysis.csv 和 a6_correction_matrix.json。
 
 用法:
@@ -39,10 +39,6 @@ from src.data.preprocessing import load_processed_data
 from src.utils.feature_cache import load_npz_cache
 from src.utils.reproducibility import set_global_seed
 
-# 子集大小（与 Phase 4 一致）
-SUBSET_SIZES = {"train": 600, "val": 150, "test": 150}
-
-
 def load_cached_features(cache_dir: Path) -> dict:
     """加载 Phase 4 缓存特征。"""
     logger.info("加载缓存特征...")
@@ -60,6 +56,11 @@ def load_cached_features(cache_dir: Path) -> dict:
     X_as_val = as_val["features"]
     as_test = load_npz_cache(cache_dir / "attention_scores_test.npz")
     X_as_test = as_test["features"]
+    attention_labels = {
+        "train": as_train["labels"],
+        "val": as_val["labels"],
+        "test": as_test["labels"],
+    }
 
     logger.info("Hidden features: train=%s, val=%s, test=%s",
                 X_h_train.shape, X_h_val.shape, X_h_test.shape)
@@ -69,7 +70,28 @@ def load_cached_features(cache_dir: Path) -> dict:
     return {
         "X_h_train": X_h_train, "X_h_val": X_h_val, "X_h_test": X_h_test,
         "X_as_train": X_as_train, "X_as_val": X_as_val, "X_as_test": X_as_test,
+        "attention_labels": attention_labels,
     }
+
+
+def validate_cache_alignment(features: dict, train_ds, val_ds, test_ds) -> dict[str, int]:
+    """确认 hidden cache 足够覆盖 attention cache，并返回实际分析样本数。"""
+    sizes = {
+        "train": len(features["attention_labels"]["train"]),
+        "val": len(features["attention_labels"]["val"]),
+        "test": len(features["attention_labels"]["test"]),
+    }
+    dataset_sizes = {"train": len(train_ds), "val": len(val_ds), "test": len(test_ds)}
+    for split_name, size in sizes.items():
+        hidden_size = features[f"X_h_{split_name}"].shape[0]
+        attention_size = features[f"X_as_{split_name}"].shape[0]
+        if size != attention_size:
+            raise ValueError(f"{split_name} attention features/labels 数量不一致: {attention_size} vs {size}")
+        if hidden_size < size:
+            raise ValueError(f"{split_name} hidden cache 只有 {hidden_size} 条，少于 attention cache 的 {size} 条")
+        if dataset_sizes[split_name] < size:
+            raise ValueError(f"{split_name} 数据集只有 {dataset_sizes[split_name]} 条，少于 attention cache 的 {size} 条")
+    return sizes
 
 
 def residualize_by_length_simple(
@@ -137,20 +159,24 @@ def main():
     X_as_val = features["X_as_val"]
     X_as_test = features["X_as_test"]
 
-    # ---- 3. 取子集（600/150/150） ----
-    X_h_sub_train = X_h_train[:SUBSET_SIZES["train"]]
-    X_h_sub_val = X_h_val[:SUBSET_SIZES["val"]]
-    X_h_sub_test = X_h_test[:SUBSET_SIZES["test"]]
+    # ---- 3. 按 attention cache 覆盖范围取样；全量缓存即全量分析 ----
+    analysis_sizes = validate_cache_alignment(features, train_ds, val_ds, test_ds)
+    logger.info("A6 分析范围: train=%d, val=%d, test=%d",
+                analysis_sizes["train"], analysis_sizes["val"], analysis_sizes["test"])
 
-    X_as_sub_train = X_as_train[:SUBSET_SIZES["train"]]
-    X_as_sub_val = X_as_val[:SUBSET_SIZES["val"]]
-    X_as_sub_test = X_as_test[:SUBSET_SIZES["test"]]
+    X_h_sub_train = X_h_train[:analysis_sizes["train"]]
+    X_h_sub_val = X_h_val[:analysis_sizes["val"]]
+    X_h_sub_test = X_h_test[:analysis_sizes["test"]]
 
-    y_sub_train = np.array(train_ds.labels[:SUBSET_SIZES["train"]], dtype=np.int64)
-    y_sub_val = np.array(val_ds.labels[:SUBSET_SIZES["val"]], dtype=np.int64)
-    y_sub_test = np.array(test_ds.labels[:SUBSET_SIZES["test"]], dtype=np.int64)
+    X_as_sub_train = X_as_train[:analysis_sizes["train"]]
+    X_as_sub_val = X_as_val[:analysis_sizes["val"]]
+    X_as_sub_test = X_as_test[:analysis_sizes["test"]]
 
-    test_statements = test_ds.statements[:SUBSET_SIZES["test"]]
+    y_sub_train = np.asarray(features["attention_labels"]["train"], dtype=np.int64)
+    y_sub_val = np.asarray(features["attention_labels"]["val"], dtype=np.int64)
+    y_sub_test = np.asarray(features["attention_labels"]["test"], dtype=np.int64)
+
+    test_statements = test_ds.statements[:analysis_sizes["test"]]
 
     # ---- 4. 残差化 attention score 特征 ----
     X_as_sub_train_r, X_as_sub_val_r, X_as_sub_test_r = residualize_by_length_simple(
@@ -228,6 +254,8 @@ def main():
         "hidden_wrong_a6_correct": case_counts["hidden_wrong_a6_correct"],
         "hidden_wrong_a6_wrong": case_counts["hidden_wrong_a6_wrong"],
         "net_correction": net,
+        "analysis_sizes": analysis_sizes,
+        "is_full_test_analysis": analysis_sizes["test"] == len(test_ds),
     }
 
     json_path = out_dir / "a6_correction_matrix.json"
@@ -243,7 +271,7 @@ def main():
     a6_auroc = roc_auc_score(y_sub_test, a6_probs)
 
     print("\n" + "=" * 60)
-    print("  A6 vs Hidden-only 对比 (Test Subset 150)")
+    print(f"  A6 vs Hidden-only 对比 (test n={analysis_sizes['test']})")
     print("=" * 60)
     print(f"  Hidden-only: Acc={h_acc:.4f}, AUROC={h_auroc:.4f}")
     print(f"  A6:          Acc={a6_acc:.4f}, AUROC={a6_auroc:.4f}")

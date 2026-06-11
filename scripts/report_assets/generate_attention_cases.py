@@ -1,7 +1,7 @@
 """
 Phase 5 报告资产: 生成 Attention 案例可视化。
 
-对测试子集前 150 条样本，使用最强 head (L16-H05) 的 attention matrix,
+从 `a6_case_analysis.csv` 中挑选代表性样本，使用最强 head 的 attention matrix,
 绘制 last token attending to previous tokens 的 heatmap，
 并用 anchor 标注 subject / relation / tail token 位置。
 
@@ -272,7 +272,6 @@ def select_cases(a6_rows: list[dict]) -> dict:
 
 def main():
     from src.features.anchor_extraction import extract_anchors
-    from src.data.preprocessing import load_processed_data
 
     t_start = time.time()
 
@@ -297,12 +296,7 @@ def main():
     # ---- 4. 加载模型 ----
     model, tokenizer = load_model_eager()
 
-    # ---- 5. 加载数据获取完整 test 语句 ----
-    _, _, test_ds = load_processed_data()
-    test_sub_statements = test_ds.statements[:150]
-    test_sub_labels = test_ds.labels[:150]
-
-    # ---- 6. 生成案例 ----
+    # ---- 5. 生成案例 ----
     out_dir = Path("experiments/results/phase4/case_viz")
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -397,13 +391,13 @@ def main():
                 "image_path": str(png_path),
             })
 
-    # ---- 7. 保存 cases.json ----
+    # ---- 6. 保存 cases.json ----
     json_path = out_dir / "cases.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(cases_meta, f, indent=2, ensure_ascii=False)
     logger.info("案例元数据已保存至 %s (%d 个案例)", json_path, len(cases_meta))
 
-    # ---- 8. 检查 improvement cases ----
+    # ---- 7. 检查 improvement cases ----
     if cases["improvement"]:
         logger.info("找到 %d 个 improvement cases (hidden-wrong, A6-correct)", len(cases["improvement"]))
     else:
