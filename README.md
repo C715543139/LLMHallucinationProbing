@@ -2,7 +2,7 @@
 
 利用大语言模型内部状态进行幻觉检测的实验项目。项目以 Qwen2-1.5B 和 True-False Dataset 为基础，比较序列概率、隐藏状态探测和注意力特征融合等方法，验证模型内部表征中是否存在可被读取的真假判别信号。
 
-当前代码已完成 Phase 1 至 Phase 4 的主体实现、自动化测试与结果归档，后续工作主要集中在正式报告、图表整理、跨模型扩展和显著性分析。
+当前代码已完成 Phase 1 至 Phase 4 的主体实现、自动化测试、结果归档和 ACL 风格英文报告项目。后续工作主要集中在正式提交信息替换、跨模型扩展、显著性分析和更稳健的融合策略验证。
 
 ## 项目概览
 
@@ -69,8 +69,9 @@ Phase 4 围绕注意力信号做了系统探索：从 raw / debiased attention s
 ├── tests/                          # Phase 1-4 自动化测试
 ├── experiments/results/            # 已归档实验结果
 ├── docs/                           # 项目计划、阶段报告与进阶方案说明
+├── report/                         # ACL 风格英文报告 LaTeX 项目
 ├── data/                           # 已跟踪的原始数据与预处理划分
-└── models_cache/                   # 本地模型缓存，未纳入 Git
+└── models_cache/                   # 本地模型缓存，未纳入 Git，克隆后需自行准备
 ```
 
 ## 环境要求
@@ -83,7 +84,7 @@ Phase 4 围绕注意力信号做了系统探索：从 raw / debiased attention s
 - `uv` 用于安装 `pyproject.toml` 中锁定的依赖
 - HuggingFace 模型下载能力，必要时使用 `HF_ENDPOINT=https://hf-mirror.com`
 
-`models_cache/` 被 `.gitignore` 排除。克隆仓库后，如需完整复现实验，需要自行准备或下载 Qwen2-1.5B 模型文件；数据文件已随仓库跟踪。
+`models_cache/` 被 `.gitignore` 排除，当前仓库不保证随检出包含模型权重。克隆仓库后，如需完整复现实验，需要自行准备或下载 Qwen2-1.5B 模型文件；数据文件已随仓库跟踪。
 
 ## 配置引导
 
@@ -176,11 +177,15 @@ pytest tests/phase4
 
 ## 文档入口
 
-目前只保留最常用的文档入口，暂不对 `docs/` 下全部文件做结构化索引：
+目前只保留最常用的文档入口，暂不对 `docs/` 下全部历史文件做结构化索引：
 
 - [docs/Project_Plan.md](docs/Project_Plan.md)：项目计划、环境搭建、阶段任务与运行说明。
 - [docs/Report.md](docs/Report.md)：阶段性实验报告、方法解释、结果讨论与局限性。
-- [docs/Report_ACL_zh.md](docs/Report_ACL_zh.md)：论文式中文对照稿，覆盖 Phase 4 全量消融与最终口径。
+- [report/main.tex](report/main.tex)：最终英文 ACL 风格论文正文。
+- [report/README.md](report/README.md)：LaTeX 报告项目说明与编译入口。
+- [docs/Proposal.md](docs/Proposal.md)：早期选题与计划提案，保留为过程材料。
+- [docs/利用大语言模型内部状态进行幻觉检测.md](docs/%E5%88%A9%E7%94%A8%E5%A4%A7%E8%AF%AD%E8%A8%80%E6%A8%A1%E5%9E%8B%E5%86%85%E9%83%A8%E7%8A%B6%E6%80%81%E8%BF%9B%E8%A1%8C%E5%B9%BB%E8%A7%89%E6%A3%80%E6%B5%8B.md)：课程任务说明原文，不代表当前实现状态。
+- [docs/outdated/Report_ACL_zh.md](docs/outdated/Report_ACL_zh.md)：论文式中文对照稿归档，最终提交以 `report/main.tex` 为准。
 - [docs/outdated/Milestone.md](docs/outdated/Milestone.md)：历史中期里程碑归档，仅作提交记录参考。
 
 ## License

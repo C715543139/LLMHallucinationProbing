@@ -26,6 +26,6 @@ On TeXPage or similar online LaTeX platforms, upload the whole `report/` folder 
 ## Notes
 
 - The author block in `main.tex` is a placeholder and should be replaced before final submission.
-- The Chinese Markdown counterpart is stored outside this TeX project at `docs/Report_ACL_zh.md`.
+- The archived Chinese Markdown counterpart is stored outside this TeX project at `docs/outdated/Report_ACL_zh.md`; the submission report source is `report/main.tex`.
 - Historical outline drafts are archived under `docs/outdated/`.
 - Report figures are copied from `experiments/results/` into `report/figures/` so the TeX project remains self-contained.

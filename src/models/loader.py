@@ -2,7 +2,7 @@
 模型加载模块。
 
 支持:
-    - Qwen2-1.5B float16（默认通过 device_map="auto" 加载）
+    - Qwen2-1.5B 显式 dtype 加载（当前默认 bfloat16 + device_map="auto"）
 
 同时提供便捷的 GPU 检测与显存查询工具。
 """

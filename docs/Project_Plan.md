@@ -34,7 +34,7 @@
 - **层分析约定**：层分析统一以 Transformer block 输出为统计对象，不将 embedding output 计入层号；层索引通过 `model.config.num_hidden_layers` 动态获取，不硬编码具体数值
 - **Subject token 提取**：若实验中需要定位主语实体，优先使用依存句法或 noun chunk 规则抽取句首主语短语；对于能够稳定识别的命名实体样本，可辅以 NER 工具（如 spaCy）做对齐检查。若自动解析不可靠，则退化为手工规则，并仅在报告中标注结果。Subject token 分析作为可选项，保底至少比较 First token、Last token 与 Mean pooling
 
-### 1.4 当前实现同步（截至 2026-05-31）
+### 1.4 当前实现同步（截至 2026-07-01）
 
 结合当前工作区中的真实代码与目录结构，项目当前状态如下：
 
@@ -44,10 +44,10 @@
 - **Phase 2 最终采用结果已收敛**：当前报告与后续分析默认以 `ppl_results.json`、`saplma_logistic_results.json` 与 `saplma_mlp_results_rerun_best.json` 作为已确认的 Phase 2 结果来源
 - **Phase 3 已完成实现与收尾**：`src/analysis/` 中的层分析、token 分析与可视化模块已落地，`tests/phase3/` 已建立，完整结果与图像已生成到 `experiments/results/analysis/`，并已同步写入 `docs/Report.md`
 - **Phase 4 已完成核心实现与全量复跑**：注意力 anchor、attention score / output 特征、去长度偏置、head selection、A0-A9 消融、错误分析与图表生成均已落地；全量结果显示 A2 debiased attention-score only 是当前 A0-A9 attention-guided 消融中的最优方法，同时也验证了 top-head 融合、attention output 与 gated routing 的收益边界
-- **Phase 5 报告资产已补齐**：已生成 PPL 分布图、Phase 4 方法对比图、layer-head AUROC heatmap、A9 修正矩阵与 attention case 可视化，相关资产位于 `experiments/results/`
+- **Phase 5 报告资产与 LaTeX 报告项目已补齐**：已生成 PPL 分布图、Phase 4 方法对比图、layer-head AUROC heatmap、A9 修正矩阵与 attention case 可视化；正式英文 ACL 风格报告位于 `report/main.tex`
 - **数值稳定路径已切换**：Linux + RTX 3090 环境下，`eager + float16` 仍会产生 NaN；当前默认稳定路径为 `bfloat16 + eager attention`，并已在 `src/config.py` 中作为主配置同步
 - **CLI 与脚本结构已收敛**：`main.py` 已改为纯命令分发器；通用命令位于 `scripts/commands/`，阶段运行脚本位于 `scripts/run/`
-- **项目主体实验已基本完成**：当前剩余工作主要集中在 README / 计划文档等工程与文档收尾；Phase 2-4 主体实验逻辑已经落地
+- **项目主体实验与报告整理已基本完成**：后续工作主要集中在提交信息替换、跨模型扩展、显著性分析和更稳健的融合策略验证；Phase 2-4 主体实验逻辑已经落地
 - **里程碑文档已整合**：M1-M4 的核心内容已同步合并到下方对应 Phase 段落中，原独立里程碑文档不再单独保留
 
 ---
@@ -102,6 +102,7 @@ LLMHallucinationProbing/
 │   ├── Project_Plan.md
 │   ├── Proposal.md
 │   ├── Report.md
+│   ├── outdated/
 │   ├── 利用大语言模型内部状态进行幻觉检测.md
 │   └── revision/
 │       └── Project_Plan_review_v*.md
@@ -141,12 +142,14 @@ LLMHallucinationProbing/
 │           ├── phase4_ablation_results.json
 │           ├── phase4_error_analysis.csv
 │           └── phase4_main_results.csv
-├── models_cache/
+├── report/
+│   ├── main.tex
+│   ├── custom.bib
+│   ├── acl.sty
+│   ├── acl_natbib.bst
+│   └── figures/
+├── models_cache/                    # Git 忽略的本地模型缓存，当前检出不保证存在
 │   └── Qwen2-1.5B/
-│       ├── config.json
-│       ├── tokenizer.json
-│       ├── tokenizer_config.json
-│       └── model.safetensors
 ├── scripts/
 │   ├── diagnose_eager.py
 │   ├── show_results.py
@@ -324,7 +327,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 hf download Qwen/Qwen2-1.5B --local-dir models_cache/Qwen2-1.5B
 ```
 
-> **当前实现同步**：当前工作区中已存在 `models_cache/Qwen2-1.5B/`，包括 `config.json`、`tokenizer.json`、`tokenizer_config.json` 与 `model.safetensors` 等核心文件。若仅复现实验，可优先检查本地缓存是否已齐全，再决定是否重新下载。
+> **当前实现同步**：`models_cache/Qwen2-1.5B/` 是约定的本地模型缓存路径，但该目录被 `.gitignore` 排除，当前检出不保证包含模型权重。若需要完整复现实验，应先检查本地缓存是否存在；若不存在，再按上面的命令下载。
 
 > **Linux 端注意事项**：
 >
@@ -377,7 +380,7 @@ unzip -o /tmp/true-false-dataset.zip -d data/raw/
 | P1.3 | 下载 Qwen2-1.5B 模型权重                | `models_cache/`                             | A          |
 | P1.4 | 下载 True-False Dataset 6 个子集        | `data/raw/`                                 | B          |
 | P1.5 | 撰写数据加载模块 `src/data/dataset.py`  | 可加载数据的 Dataset 类                     | B          |
-| P1.6 | 实现模型加载模块 `src/models/loader.py` | 支持 FP16 的模型加载器                      | A          |
+| P1.6 | 实现模型加载模块 `src/models/loader.py` | 支持显式 dtype 的模型加载器                 | A          |
 | P1.7 | 划分 train/val/test 并预处理            | `data/processed/`                           | B          |
 | P1.8 | 搭建全局配置文件 `src/config.py`        | 统一配置入口                                | A          |
 | P1.9 | 编写 Phase 1 验证测试，运行并报告结果   | `tests/phase1/`，`scripts/commands/check_phase1.py` | A+B        |
@@ -416,7 +419,7 @@ unzip -o /tmp/true-false-dataset.zip -d data/raw/
 
 ###### 3. 模型加载与前向传播基础能力
 
-- 已建立本地模型缓存目录 `models_cache/Qwen2-1.5B/`
+- 已在配置中约定本地模型缓存目录 `models_cache/Qwen2-1.5B/`；该目录不纳入 Git，完整复现实验时需要在本机准备
 - 已实现模型加载模块 `src/models/loader.py`
 - 已支持设备信息查询与 CUDA / GPU 可用性检测
 - 已能在真实模型上完成单条陈述的前向传播
@@ -455,11 +458,7 @@ LLMHallucinationProbing/
 │       ├── val.pt
 │       └── test.pt
 ├── models_cache/
-│   └── Qwen2-1.5B/
-│       ├── config.json
-│       ├── tokenizer.json
-│       ├── tokenizer_config.json
-│       └── model.safetensors
+│   └── Qwen2-1.5B/   # 本地准备，Git 检出不保证存在
 ├── scripts/
 │   └── commands/
 │       └── check_phase1.py
@@ -561,7 +560,7 @@ def extract_last_token_hidden(model, tokenizer, statement, layer_idx=-1):
 - `src/methods/probability.py` 已实现 PPL 打分、阈值调优与完整评估流水线
 - `src/features/hidden_states.py` 已实现最后 token 特征提取、批量提取与全层提取接口
 - `src/methods/saplma.py` 已实现 LR / MLP 分类器训练、预测与多随机种子 SAPLMA 实验
-- `src/config.py`、`src/models/loader.py` 与 `src/utils/reproducibility.py` 已补充显式 float16、全局随机种子与确定性运行设置
+- `src/config.py`、`src/models/loader.py` 与 `src/utils/reproducibility.py` 已补充显式 dtype、全局随机种子与确定性运行设置；当前默认 dtype 为 `bfloat16`
 - `scripts/run/phase2.py` 已作为 Phase 2 主脚本落地，`main.py` 通过分发器提供 `phase2`、`phase2-ppl`、`phase2-saplma` 兼容入口
 - `experiments/results/baseline/` 已存在 Phase 2 结果文件：`ppl_results.json`、`saplma_logistic_results.json`、`saplma_mlp_results.json`（历史本地结果）与 `saplma_mlp_results_rerun_best.json`（修改后方案重跑并在报告中采用的最终结果）
 - 新的结果摘要写盘逻辑已支持记录 `threshold_metric`、`seeds` 与 `runtime` 等复现信息
@@ -643,7 +642,7 @@ LLMHallucinationProbing/
 │       ├── val.pt
 │       └── test.pt
 └── models_cache/
-    └── Qwen2-1.5B/
+    └── Qwen2-1.5B/   # 本地准备，Git 检出不保证存在
 ```
 
 ##### 实践要点
@@ -653,7 +652,7 @@ LLMHallucinationProbing/
 - **PPL 阈值方向不能反**：PPL 越低表示模型越认可该陈述，阈值搜索与评估实现必须遵守这一方向约定
 - **测试不仅验证接口存在，还验证边界**：需要同时覆盖 dummy model、真实模型、批量与单样本逻辑、返回维度稳定性、异常路径与合理退化逻辑
 - **延迟导入降低环境噪声影响**：按需导入可减少底层依赖初始化带来的额外干扰
-- **复现实验要显式约束运行条件**：为减小跨设备漂移，Phase 2 最终代码路径已固定 float16、随机种子与确定性运行选项；后续 Phase 3 / Phase 4 建议沿用同一约定
+- **复现实验要显式约束运行条件**：为减小跨设备漂移，当前代码路径已固定模型 dtype、随机种子与确定性运行选项；Phase 4 主路径使用 `bfloat16 + eager attention`
 
 ##### M2 达成情况总结
 
@@ -791,7 +790,7 @@ LLMHallucinationProbing/
 
 ---
 
-### Phase 5：报告撰写与答辩准备（5-6 天）| 6.5 – 6.11 ｜**当前状态：进行中，报告资产已补齐**
+### Phase 5：报告撰写与答辩准备（5-6 天）| 6.5 – 6.11 ｜**当前状态：报告项目与主要资产已补齐**
 
 | 编号 | 任务                          | 输出物       |
 | ---- | ----------------------------- | ------------ |
@@ -812,6 +811,8 @@ LLMHallucinationProbing/
 - `experiments/results/phase4/phase4_ablation_results.json`：A0-A9 消融主结果，并包含 A9 vs hidden-only correction matrix
 - `experiments/results/phase4/phase4_error_analysis.csv`：A9 gated fusion 的逐样本错误修正分析
 - `experiments/results/phase4/case_viz/`：基于验证集代表性 head 的 attention case 可视化
+- `report/main.tex`：英文 ACL 风格报告正文
+- `report/figures/`：为在线 LaTeX 编译复制的报告图表资产
 
 **报告结构建议**：
 
